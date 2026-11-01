@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ball Battle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css?v=27" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='42' cy='50' r='24' fill='%23ff4b1f'/%3E%3Ccircle cx='64' cy='50' r='24' fill='%2319d4ef'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div class="brand">
+          <p class="kicker">SQUARE ARENA</p>
+          <h1>BALL BATTLE</h1>
+        </div>
+        <div class="top-actions">
+          <button type="button" id="debug-toggle" class="mute" aria-controls="debug" aria-pressed="false">디버그</button>
+          <button type="button" id="mute" class="mute" aria-pressed="false">소리 켜짐</button>
+        </div>
+      </header>
+
+      <section class="hud" aria-label="대전 현황">
+        <article class="fighter p1" id="fighter1">
+          <canvas class="portrait" id="port1" width="160" height="160"></canvas>
+          <div class="fighter-copy">
+            <div class="who">
+              <span class="ptag">1P</span>
+              <h2 id="name1">블레이즈</h2>
+            </div>
+            <div
+              class="hp"
+              id="meter1"
+              role="meter"
+              aria-label="1P 체력"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            >
+              <div class="hp-fill" id="hp1"></div>
+            </div>
+            <p class="hp-num"><span id="hptext1">100</span><span id="hpmax1">/ 100</span></p>
+          </div>
+        </article>
+
+        <div class="vs-block">
+          <p>단판 승부</p>
+          <strong>VS</strong>
+        </div>
+
+        <article class="fighter p2" id="fighter2">
+          <canvas class="portrait" id="port2" width="160" height="160"></canvas>
+          <div class="fighter-copy">
+            <div class="who">
+              <span class="ptag">2P</span>
+              <h2 id="name2">노바</h2>
+            </div>
+            <div
+              class="hp"
+              id="meter2"
+              role="meter"
+              aria-label="2P 체력"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            >
+              <div class="hp-fill" id="hp2"></div>
+            </div>
+            <p class="hp-num"><span id="hptext2">100</span><span id="hpmax2">/ 100</span></p>
+          </div>
+        </article>
+      </section>
+
+      <div class="arena-wrap">
+        <canvas id="arena" width="520" height="520" aria-hidden="true"></canvas>
+        <div id="banner" class="banner is-hidden" aria-live="assertive">
+          <p id="banner-kicker" class="banner-kicker"></p>
+          <p id="banner-title" class="banner-title"></p>
+          <p id="banner-sub" class="banner-sub"></p>
+        </div>
+      </div>
+      <button type="button" id="abort" class="abort-btn is-hidden">경기 중단</button>
+      <aside id="debug" class="debug is-hidden" aria-label="디버그">
+        <p class="debug-title">디버그</p>
+        <div class="debug-cols">
+          <div class="debug-col" data-player="1">
+            <span>1P</span>
+            <button type="button" data-act="hurt">체력 깎기</button>
+            <button type="button" data-act="heal">회복</button>
+            <button type="button" data-act="full">전체 회복</button>
+            <button type="button" data-act="zero">체력 0</button>
+            <button type="button" data-act="god" aria-pressed="false">무적</button>
+          </div>
+          <div class="debug-col" data-player="2">
+            <span>2P</span>
+            <button type="button" data-act="hurt">체력 깎기</button>
+            <button type="button" data-act="heal">회복</button>
+            <button type="button" data-act="full">전체 회복</button>
+            <button type="button" data-act="zero">체력 0</button>
+            <button type="button" data-act="god" aria-pressed="false">무적</button>
+          </div>
+        </div>
+        <p class="debug-note">체력은 20씩 깎이거나 회복됩니다. 무적은 공격을 받지 않습니다.</p>
+      </aside>
+
+      <section class="dock" aria-label="캐릭터 선택">
+        <div class="dock-head">
+          <span>1P</span>
+          <h2>캐릭터 선택</h2>
+          <span>2P</span>
+        </div>
+        <div class="dock-body">
+          <article id="info1" class="info"></article>
+          <div class="roster-col">
+            <div id="roster" class="roster"></div>
+            <p class="hint hint-long">클릭은 1P · 빨간 2P 버튼이나 우클릭은 2P · A/D 와 ←/→ 로 이동 · Enter 로 시작</p>
+            <p class="hint hint-short">공을 누르면 1P, 빨간 2P 버튼은 2P. 같은 공은 고를 수 없다.</p>
+            <div class="actions">
+              <button type="button" id="fight" class="fight-btn">대결 시작</button>
+              <button type="button" id="reselect" class="ghost-btn is-hidden">다시 고르기</button>
+            </div>
+          </div>
+          <article id="info2" class="info info-right"></article>
+        </div>
+      </section>
+    </div>
+    <p id="toast" class="toast" role="status"></p>
+    <script type="module" src="js/main.js?v=47"></script>
+  </body>
+</html>
