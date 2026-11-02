@@ -19,8 +19,6 @@ body {
   color: var(--ink);
   font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
   background:
-    radial-gradient(640px 320px at 12% 18%, rgba(48, 116, 255, 0.2), transparent 62%),
-    radial-gradient(640px 340px at 88% 16%, rgba(255, 55, 90, 0.18), transparent 64%),
     radial-gradient(520px 280px at 50% 72%, rgba(240, 180, 41, 0.06), transparent 70%),
     var(--bg);
 }
@@ -297,9 +295,7 @@ h1 {
   background: #0c1018;
   box-shadow:
     0 0 0 7px #12151c,
-    0 0 0 8px rgba(255, 255, 255, 0.18),
-    -24px 0 48px rgba(50, 120, 255, 0.16),
-    24px 0 48px rgba(255, 60, 90, 0.14);
+    0 0 0 8px rgba(255, 255, 255, 0.18);
 }
 
 #arena {

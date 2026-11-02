@@ -4,9 +4,9 @@
  * 수치는 경기장 한 변이 520px일 때의 기준값이다.
  */
 
-import { blaze, drawBlaze } from "./blaze.js?v=34";
-import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=35";
-import { drawNova, nova } from "./nova.js?v=1";
+import { blaze } from "./blaze.js?v=35";
+import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=36";
+import { nova } from "./nova.js?v=3";
 import { drawPhantom, phantom } from "./phantom.js?v=1";
 import { drawTitan, titan } from "./titan.js?v=1";
 import { drawVolt, volt } from "./volt.js?v=1";
@@ -22,8 +22,6 @@ export function getCharacter(id) {
 }
 
 const marks = {
-  blaze: (ctx, r, char) => drawBlaze(ctx, r, char.highlight),
-  nova: (ctx, r) => drawNova(ctx, r),
   volt: (ctx, r) => drawVolt(ctx, r),
   titan: (ctx, r, char) => drawTitan(ctx, r, char.band),
   phantom: (ctx, r) => drawPhantom(ctx, r),

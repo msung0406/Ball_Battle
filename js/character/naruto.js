@@ -215,7 +215,6 @@ export const naruto = {
         color: "#1a0628",
         glow: "#7a32d6",
         shock: "#e4c6ff",
-        hist: [],
       });
       api.sfx("pulse");
       api.shake(6);
@@ -326,7 +325,6 @@ export const naruto = {
 
 export function drawNaruto(ctx, r, form, charge, skill = 0, aim = 0) {
   const img = form === 2 ? portraits.narutoBeast : portraits.naruto;
-  const ring = form === 2 ? "#ff4d6a" : "#fff4e0";
 
   if (form === 2) {
     ctx.save();
@@ -384,11 +382,13 @@ export function drawNaruto(ctx, r, form, charge, skill = 0, aim = 0) {
   ctx.fillRect(-r, -r, r * 2, r * 2);
   ctx.restore();
 
-  ctx.lineWidth = Math.max(2.5, r * 0.085);
-  ctx.strokeStyle = ring;
-  ctx.beginPath();
-  ctx.arc(0, 0, r - ctx.lineWidth * 0.35, 0, Math.PI * 2);
-  ctx.stroke();
+  if (form === 2) {
+    ctx.lineWidth = Math.max(2.5, r * 0.085);
+    ctx.strokeStyle = "#ff4d6a";
+    ctx.beginPath();
+    ctx.arc(0, 0, r - ctx.lineWidth * 0.35, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.lineWidth = Math.max(1.25, r * 0.035);
   ctx.strokeStyle = "rgba(0,0,0,.6)";
   ctx.beginPath();

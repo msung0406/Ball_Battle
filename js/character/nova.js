@@ -3,7 +3,7 @@ export const nova = {
   name: "노바",
   en: "NOVA",
   attack: "난사 레이저",
-  desc: "무작위 방향으로 레이저를 쏜다. 빛은 경기장 벽에서 두 번 튕긴 뒤 사라진다.",
+  desc: "무작위 방향으로 레이저를 쏜다. 빛은 경기장 벽에서 다섯 번 튕긴 뒤 사라진다.",
   hp: 112,
   speed: 145,
   radius: 20,
@@ -24,7 +24,7 @@ export const nova = {
       ball.x + Math.cos(ang) * (ball.r + api.S(4)),
       ball.y + Math.sin(ang) * (ball.r + api.S(4)),
       ang,
-      2,
+      5,
     );
     if (api.polylineHits(pts, enemy, api.S(7))) {
       api.damage(enemy, 16, ball.x, ball.y, api.S(120), { color: this.color });
@@ -43,13 +43,3 @@ export const nova = {
     ball.cd = this.cooldown;
   },
 };
-
-export function drawNova(ctx, r) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,.9)";
-  ctx.lineWidth = Math.max(1.5, r * 0.07);
-  ctx.beginPath();
-  ctx.ellipse(0, 0, r * 1.22, r * 0.4, -0.7, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}

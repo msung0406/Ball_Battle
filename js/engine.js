@@ -1,4 +1,4 @@
-import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=45";
+import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=48";
 import { play } from "./sfx.js?v=27";
 
 const DESIGN = 520;
@@ -465,7 +465,7 @@ export function createMatch(canvas, { onChange }) {
       p.y += p.vy * dt;
       p.life -= dt;
       if (p.arm) p.arm = Math.max(0, p.arm - dt);
-      if (p.kind === "homing" || p.kind === "rasengan" || p.kind === "bomb") {
+      if (p.kind === "homing" || p.kind === "rasengan") {
         p.hist = p.hist || [];
         p.hist.push({ x: p.x, y: p.y });
         if (p.hist.length > (p.kind === "homing" ? 8 : 5)) p.hist.shift();
@@ -885,17 +885,6 @@ export function createMatch(canvas, { onChange }) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, W);
 
-    const left = ctx.createLinearGradient(0, 0, W * 0.55, 0);
-    left.addColorStop(0, "rgba(50,130,255,.16)");
-    left.addColorStop(1, "rgba(50,130,255,0)");
-    ctx.fillStyle = left;
-    ctx.fillRect(0, 0, W / 2, W);
-    const right = ctx.createLinearGradient(W, 0, W * 0.45, 0);
-    right.addColorStop(0, "rgba(255,60,90,.14)");
-    right.addColorStop(1, "rgba(255,60,90,0)");
-    ctx.fillStyle = right;
-    ctx.fillRect(W / 2, 0, W / 2, W);
-
     ctx.strokeStyle = "rgba(255,255,255,.045)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -913,27 +902,9 @@ export function createMatch(canvas, { onChange }) {
     ctx.lineWidth = 2;
     ctx.strokeRect(14, 14, W - 28, W - 28);
     ctx.beginPath();
-    ctx.arc(W / 2, W / 2, W * 0.15, 0, Math.PI * 2);
     ctx.moveTo(W / 2, 14);
     ctx.lineTo(W / 2, W - 14);
     ctx.stroke();
-
-    ctx.strokeStyle = "rgba(255,255,255,.8)";
-    ctx.lineWidth = 3;
-    const m = 18;
-    const c = 26;
-    ctx.beginPath();
-    corner(m, m, c, 1, 1);
-    corner(W - m, m, c, -1, 1);
-    corner(m, W - m, c, 1, -1);
-    corner(W - m, W - m, c, -1, -1);
-    ctx.stroke();
-  }
-
-  function corner(x, y, len, sx, sy) {
-    ctx.moveTo(x, y + len * sy);
-    ctx.lineTo(x, y);
-    ctx.lineTo(x + len * sx, y);
   }
 
   function noteDash(ball, dt) {
@@ -1050,9 +1021,9 @@ export function createMatch(canvas, { onChange }) {
       const ang = p.kind === "shuriken" ? p.spin || 0 : Math.atan2(p.vy, p.vx);
       drawWeapon(ctx, p.kind, p.r, ang);
     } else if (p.kind === "rasengan" || p.kind === "bomb") {
-      if (p.hist?.length) {
+      if (p.kind === "rasengan" && p.hist?.length) {
         ctx.globalAlpha = 0.35;
-        ctx.strokeStyle = p.kind === "bomb" ? "#6a2ea8" : "#9ae7ff";
+        ctx.strokeStyle = "#9ae7ff";
         ctx.lineWidth = Math.max(2, p.r * 0.45);
         ctx.lineCap = "round";
         ctx.beginPath();

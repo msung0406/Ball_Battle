@@ -55,14 +55,3 @@ export const blaze = {
     }
   },
 };
-
-export function drawBlaze(ctx, r, color) {
-  ctx.fillStyle = color;
-  for (const i of [-0.34, 0, 0.34]) {
-    ctx.beginPath();
-    ctx.moveTo(i * r - r * 0.13, -r * 0.58);
-    ctx.quadraticCurveTo(i * r, -r * 1.22, i * r + r * 0.13, -r * 0.58);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
