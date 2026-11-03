@@ -1,4 +1,4 @@
-import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=48";
+import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=67";
 import { play } from "./sfx.js?v=27";
 
 const DESIGN = 520;
@@ -13,6 +13,8 @@ export function createMatch(canvas, { onChange }) {
   let projectiles = [];
   let particles = [];
   let texts = [];
+  let smokeLayer = null;
+  let smokeCtx = null;
   let state = "preview";
   let winner = 0;
   let countLeft = 0;
@@ -38,6 +40,12 @@ export function createMatch(canvas, { onChange }) {
     },
     shock: shockwave,
     smoke,
+    puff,
+    cloneBurst,
+    summonClone,
+    clonesOf,
+    dismissClones,
+    foes,
     sfx: play,
     castLaser,
     polylineHits,
@@ -153,6 +161,7 @@ export function createMatch(canvas, { onChange }) {
       recoil: 0,
       recoilVx: 0,
       recoilVy: 0,
+      pop: 0,
       god: Boolean(god[player]),
     };
   }
@@ -189,6 +198,7 @@ export function createMatch(canvas, { onChange }) {
       if (p.vx) p.vx *= k;
       if (p.vy) p.vy *= k;
       if (p.r) p.r *= k;
+      if (p.born) p.born *= k;
       if (p.radius) p.radius *= k;
       if (p.prev) p.prev *= k;
       if (p.maxR) p.maxR *= k;
@@ -264,6 +274,7 @@ export function createMatch(canvas, { onChange }) {
 
     const fighting = state === "fight";
     for (const ball of balls) {
+      if (ball.poofed) continue;
       const enemy = balls[1 - ball.i];
       const def = getCharacter(ball.charId);
       let lock = false;
@@ -300,25 +311,28 @@ export function createMatch(canvas, { onChange }) {
           lock = true;
         }
       }
-      if (!lock && state === "fight") {
+      if (!lock && state === "fight" && !(ball.pop > 0)) {
         const scale = ball.mode === "windup" ? (def.windupScale?.(ball) ?? 1) : 1;
         holdCourse(ball, scale);
       }
-      const wall = moveAndBounce(ball, dt);
-      if (fighting) def.afterMove?.(ball, enemy, dt, api, { wall });
+      let wall = false;
+      if (ball.pop > 0) {
+        ball.vx = 0;
+        ball.vy = 0;
+        ball.pop += dt;
+      } else {
+        wall = moveAndBounce(ball, dt);
+      }
+      if (fighting && !(ball.pop > 0)) def.afterMove?.(ball, enemy, dt, api, { wall });
       ball.flash = Math.max(0, ball.flash - dt);
       ball.phase = Math.max(0, ball.phase - dt);
     }
 
-    if (
-      balls[0].phase <= 0 &&
-      balls[1].phase <= 0 &&
-      balls[0].mode !== "awaken" &&
-      balls[1].mode !== "awaken" &&
-      balls[0].recoil <= 0 &&
-      balls[1].recoil <= 0
-    ) {
-      collide(balls[0], balls[1]);
+    for (let i = 0; i < balls.length; i += 1) {
+      for (let j = i + 1; j < balls.length; j += 1) {
+        if (!canCollide(balls[i]) || !canCollide(balls[j])) continue;
+        collide(balls[i], balls[j]);
+      }
     }
     for (const ball of balls) {
       if (ball.mode === "awaken" && Number.isFinite(ball.anchorX)) {
@@ -327,16 +341,16 @@ export function createMatch(canvas, { onChange }) {
         ball.vx = 0;
         ball.vy = 0;
       }
-      clampSpeed(ball);
+      if (state !== "ko") clampSpeed(ball);
       noteDash(ball, dt);
     }
 
-    if (fighting) updateProjectiles(dt);
-
     for (const q of particles) {
       if (q.kind === "smoke") {
-        q.vx *= Math.exp(-2.4 * dt);
-        q.vy *= Math.exp(-2.4 * dt);
+        const drag = q.front ? 1.35 : 1.15;
+        q.vx *= Math.exp(-drag * dt);
+        q.vy *= Math.exp(-drag * dt);
+        if (q.front) q.vy -= S(6) * dt;
         q.r += q.grow * dt;
       }
       q.x += q.vx * dt;
@@ -351,12 +365,19 @@ export function createMatch(canvas, { onChange }) {
     }
     texts = texts.filter((text) => text.life > 0);
 
-    if (state === "ko") {
+    if (fighting) updateProjectiles(dt);
+    else if (state === "ko") {
+      for (const p of projectiles) if (p.kind === "shock") growShock(p, dt);
+      projectiles = projectiles.filter((p) => p.life > 0);
       for (const ball of balls) {
-        ball.vx *= Math.exp(-2.4 * dt);
-        ball.vy *= Math.exp(-2.4 * dt);
+        if (ball.pop > 0) continue;
+        const drag = Math.exp(-0.72 * dt);
+        ball.vx *= drag;
+        ball.vy *= drag;
       }
     }
+
+    if (balls.some((ball) => ball.poofed)) balls = balls.filter((ball) => !ball.poofed);
   }
 
   function holdCourse(ball, scale) {
@@ -427,10 +448,14 @@ export function createMatch(canvas, { onChange }) {
       ball.x = clamp(ball.x, ball.r, W - ball.r);
       ball.y = clamp(ball.y, ball.r, W - ball.r);
     }
-    if (state === "fight") {
+    if (state === "fight" && a.i !== b.i) {
       getCharacter(a.charId).onTouch?.(a, b, api);
       getCharacter(b.charId).onTouch?.(b, a, api);
     }
+  }
+
+  function canCollide(ball) {
+    return ball.phase <= 0 && ball.mode !== "awaken" && ball.recoil <= 0 && !(ball.pop > 0) && ball.hp > 0 && !ball.poofed;
   }
 
   function clampSpeed(ball) {
@@ -445,19 +470,39 @@ export function createMatch(canvas, { onChange }) {
 
   function updateProjectiles(dt) {
     for (const p of projectiles) {
+      if (state !== "fight" && p.kind !== "shock") {
+        p.life = 0;
+        continue;
+      }
       if (p.kind === "beam" || p.kind === "blast" || p.kind === "shock") {
         if (p.kind === "blast") {
           const t = 1 - p.life / p.max;
           p.r = p.maxR * (0.42 + 0.58 * Math.min(1, t * 2));
-          if (!p.didHit) hitBlast(p);
+          hitBlast(p);
+          if (state !== "fight") {
+            p.life = 0;
+            continue;
+          }
         } else if (p.kind === "shock") {
-          p.r = Math.min(p.maxR, p.r + p.grow * dt);
+          growShock(p, dt);
+          continue;
         }
         p.life -= dt;
         continue;
       }
       if (p.kind === "ring") {
         updateRing(p, dt);
+        continue;
+      }
+      if (p.stuck) {
+        const enemy = p.stuckTo && balls.includes(p.stuckTo) && !p.stuckTo.poofed ? p.stuckTo : null;
+        if (!enemy) {
+          p.life = 0;
+          continue;
+        }
+        p.x = enemy.x + p.stickNx * enemy.r * p.stickOut;
+        p.y = enemy.y + p.stickNy * enemy.r * p.stickOut;
+        p.life -= dt;
         continue;
       }
       if (p.kind === "homing") steerHoming(p, dt);
@@ -473,9 +518,8 @@ export function createMatch(canvas, { onChange }) {
       if (p.kind === "shuriken") p.spin = (p.spin || 0) + dt * 16;
       bounceProjectile(p);
       if (p.life <= 0 || p.arm > 0) continue;
-      const enemy = balls[1 - p.owner];
+      const enemy = projectileTarget(p);
       if (!enemy) continue;
-      if (Math.hypot(enemy.x - p.x, enemy.y - p.y) > enemy.r + p.r) continue;
       if (enemy.mode === "awaken") {
         if (p.kind === "bomb") shake = Math.max(shake, 32);
         p.life = 0;
@@ -493,8 +537,25 @@ export function createMatch(canvas, { onChange }) {
           ? { speed: p.launchSpeed, time: p.launchTime ?? 0.36, ang: Math.atan2(p.vy, p.vx), color }
           : { color },
       );
+      if (state !== "fight") {
+        p.life = 0;
+        continue;
+      }
       if (p.kind === "bomb") shake = Math.max(shake, 32);
-      p.life = 0;
+      if (p.kind === "kunai" && !enemy.clone && !enemy.poofed && balls.includes(enemy)) {
+        const ang = Math.atan2(p.vy, p.vx);
+        p.stuck = true;
+        p.stuckTo = enemy;
+        p.stickAng = ang;
+        p.stickNx = -Math.cos(ang);
+        p.stickNy = -Math.sin(ang);
+        p.stickOut = 0.35 + (p.r * 1.9) / enemy.r;
+        p.vx = 0;
+        p.vy = 0;
+        p.life = 0.48;
+      } else {
+        p.life = 0;
+      }
     }
     projectiles = projectiles.filter((p) => p.life > 0);
   }
@@ -563,31 +624,53 @@ export function createMatch(canvas, { onChange }) {
       shock: p.shock || "#e4c6ff",
       didHit: false,
     });
+    const color = p.shock || "#e4c6ff";
+    pushShock(p.x, p.y, p.r * 0.7, radius, S(460), 0.34, color, S(3.4));
+    pushShock(p.x, p.y, p.r * 0.4, radius * 0.62, S(320), 0.42, "#fff4ff", S(1.8));
+  }
+
+  function projectileTarget(p) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const ball of balls) {
+      if (ball.i === p.owner || ball.poofed || ball.pop > 0 || ball.phase > 0) continue;
+      if (ball.hp <= 0 && ball.mode !== "awaken") continue;
+      const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
+      if (dist > ball.r + p.r || dist >= bestDist) continue;
+      best = ball;
+      bestDist = dist;
+    }
+    return best;
   }
 
   function hitBlast(p) {
-    const enemy = balls[1 - p.owner];
-    if (!enemy || enemy.hp <= 0 || enemy.phase > 0 || enemy.mode === "awaken") return;
-    if (Math.hypot(enemy.x - p.x, enemy.y - p.y) > p.r + enemy.r) return;
-    p.didHit = true;
-    const ang = Math.atan2(enemy.y - p.y, enemy.x - p.x) || 0;
-    damage(enemy, p.damage, p.x, p.y, p.force ?? S(260), {
-      speed: p.launchSpeed ?? S(860),
-      time: p.launchTime ?? 0.42,
-      ang,
-      color: p.shock || "#e4c6ff",
-    });
-    shake = Math.max(shake, 32);
+    if (!p.hitIds) p.hitIds = [];
+    for (const enemy of balls) {
+      if (enemy.i === p.owner || enemy.poofed || p.hitIds.includes(enemy)) continue;
+      if (enemy.hp <= 0 || enemy.phase > 0 || enemy.mode === "awaken") continue;
+      if (Math.hypot(enemy.x - p.x, enemy.y - p.y) > p.r + enemy.r) continue;
+      p.hitIds.push(enemy);
+      const ang = Math.atan2(enemy.y - p.y, enemy.x - p.x) || 0;
+      damage(enemy, p.damage, p.x, p.y, p.force ?? S(260), {
+        speed: p.launchSpeed ?? S(860),
+        time: p.launchTime ?? 0.42,
+        ang,
+        color: p.shock || "#e4c6ff",
+      });
+      shake = Math.max(shake, 32);
+    }
   }
 
   function updateRing(p, dt) {
     p.prev = p.radius;
     p.radius = Math.min(p.maxR, p.radius + p.grow * dt);
-    const enemy = balls[1 - p.owner];
-    if (!p.didHit && enemy && enemy.hp > 0) {
+    if (!p.hitIds) p.hitIds = [];
+    for (const enemy of balls) {
+      if (enemy.i === p.owner || enemy.poofed || enemy.hp <= 0 || enemy.phase > 0 || enemy.mode === "awaken") continue;
+      if (p.hitIds.includes(enemy)) continue;
       const dist = Math.hypot(enemy.x - p.x, enemy.y - p.y);
       if (dist + enemy.r >= p.prev && dist - enemy.r <= p.radius) {
-        p.didHit = true;
+        p.hitIds.push(enemy);
         damage(enemy, p.damage, p.x, p.y, p.force, { color: p.color });
       }
     }
@@ -630,7 +713,7 @@ export function createMatch(canvas, { onChange }) {
   }
 
   function debug(player, action) {
-    const ball = balls.find((item) => item.player === player);
+    const ball = balls.find((item) => item.player === player && !item.clone);
     if (!ball) return;
     if (action === "god") {
       god[player] = !god[player];
@@ -651,6 +734,10 @@ export function createMatch(canvas, { onChange }) {
 
   function ko(target) {
     if (state !== "fight" || !target || target.hp > 0) return;
+    if (target.clone) {
+      poofClone(target);
+      return;
+    }
     const def = getCharacter(target.charId);
     if (def.onDown?.(target, api)) return;
     finish(target.player === 1 ? 2 : 1);
@@ -668,6 +755,7 @@ export function createMatch(canvas, { onChange }) {
       x,
       y,
       r: start,
+      born: start,
       maxR: start + S(22),
       grow: S(140),
       life: 0.18,
@@ -681,44 +769,188 @@ export function createMatch(canvas, { onChange }) {
     }
   }
 
-  function smoke(x, y, vx = 0, vy = 0) {
-    const mag = Math.hypot(vx, vy);
-    if (mag < 12) return;
-    const bx = -vx / mag;
-    const by = -vy / mag;
-    const px = -by;
-    const py = bx;
-    for (let i = 0; i < 9; i += 1) {
-      const along = S(4 + Math.random() * 22);
-      const side = (Math.random() - 0.5) * S(20);
-      const life = 0.36 + Math.random() * 0.26;
-      const tone = Math.random();
-      const color = tone < 0.4 ? "120, 16, 26" : tone < 0.74 ? "164, 26, 34" : "74, 8, 14";
-      const body = Math.random() < 0.62;
+  function smoke(x, y, vx = 0, vy = 0, fade = 1) {
+    const amount = Math.min(1, Math.max(0, fade));
+    if (amount <= 0) return;
+    for (let i = 0; i < 3; i += 1) {
+      const ang = Math.random() * Math.PI * 2;
+      const around = S(12 + Math.random() * 28);
+      const life = 0.1 + Math.random() * 0.04;
+      const shade = 150 + Math.floor(Math.random() * 40);
       pushParticle({
         kind: "smoke",
-        x: x + bx * along + px * side,
-        y: y + by * along + py * side,
-        vx: bx * S(4 + Math.random() * 14) + px * (Math.random() - 0.5) * S(18),
-        vy: by * S(4 + Math.random() * 14) + py * (Math.random() - 0.5) * S(18),
+        x: x + Math.cos(ang) * around,
+        y: y + Math.sin(ang) * around,
+        vx: vx * 0.96,
+        vy: vy * 0.96,
         life,
         max: life,
-        r: S(body ? 6.4 + Math.random() * 4.6 : 2.6 + Math.random() * 2.2),
-        grow: S(body ? 10 + Math.random() * 12 : 5 + Math.random() * 6),
-        color,
-        alpha: (body ? 0.34 : 0.2) + Math.random() * 0.14,
-        stretch: 0.86 + Math.random() * 0.2,
-        spin: Math.random() * Math.PI,
+        r: S(26 + Math.random() * 16),
+        grow: S(8 + Math.random() * 10),
+        color: `${shade + 18}, ${Math.round(shade * 0.16)}, ${Math.round(shade * 0.22)}`,
+        alpha: (0.16 + Math.random() * 0.08) * amount,
+        stretch: 1,
+        spin: 0,
       });
     }
   }
 
+  function puff(x, y, power = 1) {
+    const scale = 0.92 + power * 0.1;
+    for (let i = 0; i < 4; i += 1) {
+      const life = 0.16 + Math.random() * 0.03;
+      const shade = 198 + Math.floor(Math.random() * 28);
+      pushParticle({
+        kind: "smoke",
+        front: true,
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        life,
+        max: life,
+        r: S((30 + i * 7) * scale),
+        grow: S(90),
+        color: `${Math.min(255, shade + 8)}, ${shade}, ${Math.max(0, shade - 4)}`,
+        alpha: 0.9 - i * 0.08,
+        stretch: 1,
+        spin: 0,
+        ox: x,
+        oy: y,
+      });
+    }
+    const count = Math.max(18, Math.round(24 * power));
+    for (let i = 0; i < count; i += 1) {
+      const ang = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+      const speed = S((110 + Math.random() * 70) * Math.sqrt(power));
+      const life = 0.42 + Math.random() * 0.06;
+      const shade = 186 + Math.floor(Math.random() * 36);
+      pushParticle({
+        kind: "smoke",
+        front: true,
+        x,
+        y,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        life,
+        max: life,
+        r: S((22 + Math.random() * 10) * scale),
+        grow: S(8 + Math.random() * 8),
+        color: `${Math.min(255, shade + 6)}, ${shade}, ${Math.max(0, shade - 6)}`,
+        alpha: 0.86 + Math.random() * 0.12,
+        stretch: 1,
+        spin: ang,
+        ox: x,
+        oy: y,
+      });
+    }
+  }
+
+  function summonClone(master) {
+    const char = getCharacter(master.charId);
+    const clone = makeBall(master.charId, master.player, master.i);
+    clone.clone = true;
+    clone.master = master;
+    clone.hp = 1;
+    clone.maxHp = 1;
+    clone.god = false;
+    clone.form = 1;
+    clone.r = master.r;
+    clone.baseSpeed = master.baseSpeed;
+    clone.designSpeed = char.speed;
+    clone.designRadius = char.radius;
+    clone.cd = 0.4 + Math.random() * 0.45;
+    balls.push(clone);
+    return clone;
+  }
+
+  function clonesOf(master) {
+    return balls.filter((ball) => ball.clone && ball.master === master && !ball.poofed && ball.hp > 0);
+  }
+
+  function dismissClones(master) {
+    for (const ball of balls) {
+      if (ball.clone && ball.master === master && !ball.poofed) poofClone(ball);
+    }
+  }
+
+  function foes(owner) {
+    return balls.filter(
+      (ball) =>
+        ball.i !== owner && !ball.poofed && ball.hp > 0 && ball.phase <= 0 && !(ball.pop > 0) && ball.mode !== "awaken",
+    );
+  }
+
+  function cloneBurst(x, y, r = 26) {
+    puff(x, y, 1);
+    pushShock(x, y, Math.max(S(8), r * 0.45), S(74), S(320), 0.28, "#fffaf6", S(2.6));
+  }
+
+  function poofClone(target) {
+    if (!target || target.poofed) return;
+    target.poofed = true;
+    target.hp = 0;
+    target.vx = 0;
+    target.vy = 0;
+    cloneBurst(target.x, target.y, target.r);
+    play("pulse");
+    shake = Math.min(18, shake + 4);
+  }
+
+  function growShock(p, dt) {
+    if (p.born == null) p.born = p.r;
+    const span = Math.max(0.001, p.maxR - p.born);
+    p.r = Math.min(p.maxR, p.r + (p.grow || span / (p.max || 0.3)) * dt);
+    const grown = Math.min(1, (p.r - p.born) / span);
+    p.life = (p.max || 1) * (1 - grown);
+  }
+
+  function pushShock(x, y, r, reach, grow, life, color, width) {
+    projectiles.push({
+      kind: "shock",
+      x,
+      y,
+      r,
+      born: r,
+      maxR: r + reach,
+      grow,
+      life,
+      max: life,
+      color,
+      width,
+    });
+  }
+
+  function popBall(ball) {
+    if (ball.pop > 0) return;
+    ball.pop = 0.0001;
+    ball.vx = 0;
+    ball.vy = 0;
+    const char = getCharacter(ball.charId);
+    const color = char?.color || "#fff7f8";
+    const highlight = char?.highlight || "#ffffff";
+    const origin = Math.max(S(6), ball.r * 0.2);
+    pushShock(ball.x, ball.y, origin, S(156), S(540), 0.36, "#fff8f4", S(7));
+    pushShock(ball.x, ball.y, origin, S(112), S(310), 0.52, color, S(3.6));
+    pushShock(ball.x, ball.y, origin * 0.5, S(68), S(220), 0.28, highlight, S(2.2));
+  }
+
   function finish(winnerPlayer) {
     if (state === "ko") return;
+    for (const ball of balls) if (ball.clone) ball.poofed = true;
     state = "ko";
     winner = winnerPlayer;
     play("ko");
-    shake = Math.max(shake, 12);
+    shake = Math.max(shake, 24);
+    hitStop = 0;
+    for (const p of projectiles) {
+      if (p.kind !== "shock") p.life = 0;
+    }
+    for (const ball of balls) {
+      ball.mode = "idle";
+      ball.recoil = 0;
+      if (ball.hp <= 0 && !ball.clone) popBall(ball);
+    }
   }
 
   function castLaser(x, y, ang, maxBounces) {
@@ -777,7 +1009,7 @@ export function createMatch(canvas, { onChange }) {
 
   function bannerFor() {
     if (state === "countdown") return { kicker: "", title: shownCount, sub: "" };
-    if (state === "ko" && balls.length === 2) {
+    if (state === "ko" && balls.length >= 2) {
       const id = balls[winner - 1]?.charId;
       const char = id ? getCharacter(id) : null;
       return { kicker: "K.O.", title: `${winner}P 승리`, sub: char ? char.name : "" };
@@ -818,23 +1050,25 @@ export function createMatch(canvas, { onChange }) {
     ctx.clearRect(0, 0, W, W);
     ctx.save();
     drawArena();
-    for (const q of particles) if (q.kind === "smoke") drawSmoke(q);
+    drawBackSmoke();
     for (const p of projectiles) if (p.kind !== "blast" && p.kind !== "shock") drawProjectile(p);
-    if (balls.length === 2) {
+    if (balls.length >= 2) {
       for (const ball of balls) drawTelegraph(ball, balls[1 - ball.i]);
-      for (const ball of balls) drawShadow(ball);
+      for (const ball of balls) if (!(ball.pop > 0)) drawShadow(ball);
       for (const ball of balls) {
         const enemy = balls[1 - ball.i];
         const char = getCharacter(ball.charId);
         const look = Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
+        const popT = ball.pop > 0 ? Math.min(1, ball.pop / 0.12) : 0;
+        if (popT >= 1) continue;
         drawDashTrail(ball, char, look);
         drawCharacter(ctx, char, {
           x: ball.x,
           y: ball.y,
-          r: ball.r,
+          r: ball.r * (1 + popT * 0.62),
           look,
           flash: ball.flash,
-          alpha: ball.phase > 0 ? 0.45 : 1,
+          alpha: (ball.phase > 0 ? 0.45 : 1) * (1 - popT),
           squash: ball.mode === "dash" && char.id === "blaze" ? { ang: ball.dashAng, amount: 0.24 } : null,
           form: ball.form || 1,
           charge: ball.mode === "awaken" ? 1 - ball.modeT / (ball.awakenMax || 1) : 0,
@@ -849,7 +1083,7 @@ export function createMatch(canvas, { onChange }) {
                 ? 1
                 : 0,
           aim: ball.aim ?? look,
-          ko: state === "ko" && ball.hp <= 0,
+          ko: state === "ko" && ball.hp <= 0 && !(ball.pop > 0),
         });
         if (ball.god) {
           ctx.save();
@@ -862,6 +1096,8 @@ export function createMatch(canvas, { onChange }) {
         }
         if (state === "preview" || state === "fight") drawTag(ball);
       }
+      drawFrontSmoke();
+      for (const ball of balls) drawPopFlash(ball);
       for (const p of projectiles) if (p.kind === "blast" || p.kind === "shock") drawProjectile(p);
     }
     ctx.globalAlpha = 1;
@@ -1018,7 +1254,7 @@ export function createMatch(canvas, { onChange }) {
       ctx.fill();
     } else if (p.kind === "kunai" || p.kind === "shuriken") {
       ctx.translate(p.x, p.y);
-      const ang = p.kind === "shuriken" ? p.spin || 0 : Math.atan2(p.vy, p.vx);
+      const ang = p.stuck ? p.stickAng : p.kind === "shuriken" ? p.spin || 0 : Math.atan2(p.vy, p.vx);
       drawWeapon(ctx, p.kind, p.r, ang);
     } else if (p.kind === "rasengan" || p.kind === "bomb") {
       if (p.kind === "rasengan" && p.hist?.length) {
@@ -1034,10 +1270,10 @@ export function createMatch(canvas, { onChange }) {
       ctx.translate(p.x, p.y);
       drawSkillOrb(ctx, p.kind, p.r);
     } else if (p.kind === "shock") {
-      const fade = Math.max(0, p.life / p.max);
-      ctx.globalAlpha = 0.25 + fade * 0.75;
+      const fade = Math.max(0, p.life / (p.max || 1));
+      ctx.globalAlpha = fade;
       ctx.strokeStyle = p.color || "#fff7f8";
-      ctx.lineWidth = Math.max(1.25, S(1.7));
+      ctx.lineWidth = p.width || Math.max(1.25, S(1.7));
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.stroke();
@@ -1057,23 +1293,121 @@ export function createMatch(canvas, { onChange }) {
     ctx.restore();
   }
 
-  function drawSmoke(q) {
-    const fade = Math.max(0, q.life / q.max);
-    const alpha = Math.pow(fade, 1.15) * q.alpha;
+  function drawPopFlash(ball) {
+    if (!(ball.pop > 0) || ball.pop > 0.24) return;
+    const t = ball.pop / 0.24;
+    const char = getCharacter(ball.charId);
+    const rad = ball.r * (0.85 + t * 2.8);
     ctx.save();
-    ctx.translate(q.x, q.y);
-    ctx.rotate(q.spin);
-    ctx.scale(q.stretch, 0.92);
-    const g = ctx.createRadialGradient(-q.r * 0.12, -q.r * 0.1, q.r * 0.02, 0, 0, q.r);
-    g.addColorStop(0, `rgba(${q.color}, ${alpha * 0.85})`);
-    g.addColorStop(0.22, `rgba(${q.color}, ${alpha * 0.48})`);
-    g.addColorStop(0.55, `rgba(${q.color}, ${alpha * 0.16})`);
-    g.addColorStop(1, `rgba(${q.color}, 0)`);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = (1 - t) * 0.9;
+    const g = ctx.createRadialGradient(ball.x, ball.y, rad * 0.04, ball.x, ball.y, rad);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.28, char?.highlight || "#ffffff");
+    g.addColorStop(0.62, char?.color || "#ffffff");
+    g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(0, 0, q.r, 0, Math.PI * 2);
+    ctx.arc(ball.x, ball.y, rad, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  function ensureSmokeLayer() {
+    const bw = canvas.width;
+    const bh = canvas.height;
+    if (!smokeLayer || smokeLayer.width !== bw || smokeLayer.height !== bh) {
+      smokeLayer = document.createElement("canvas");
+      smokeLayer.width = bw;
+      smokeLayer.height = bh;
+      smokeCtx = smokeLayer.getContext("2d");
+    }
+  }
+
+  function drawBackSmoke() {
+    const backs = particles.filter((q) => q.kind === "smoke" && !q.front);
+    if (!backs.length || W < 2) return;
+    ensureSmokeLayer();
+    smokeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    smokeCtx.clearRect(0, 0, W, W);
+    for (const q of backs) drawSmoke(q, smokeCtx);
+    ctx.save();
+    ctx.filter = `blur(${Math.max(4, S(6))}px)`;
+    ctx.drawImage(smokeLayer, 0, 0, W, W);
+    ctx.restore();
+  }
+
+  function drawFrontSmoke() {
+    const fronts = particles.filter((q) => q.kind === "smoke" && q.front);
+    if (!fronts.length || W < 2) return;
+    ensureSmokeLayer();
+    smokeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    smokeCtx.clearRect(0, 0, W, W);
+    for (const q of fronts) {
+      const fade = Math.max(0, q.life / q.max);
+      const age = 1 - fade;
+      const hold = age < 0.5 ? 1 : Math.pow((1 - age) / 0.5, 1.25);
+      const alpha = hold * q.alpha;
+      paintRoundSmoke(smokeCtx, q, q.x, q.y, q.r, alpha);
+    }
+    const holes = new Map();
+    for (const q of fronts) {
+      if (q.ox == null || q.max < 0.2) continue;
+      const age = 1 - q.life / q.max;
+      const key = `${q.ox.toFixed(1)},${q.oy.toFixed(1)}`;
+      const prev = holes.get(key);
+      if (!prev || age < prev.age) holes.set(key, { x: q.ox, y: q.oy, age });
+    }
+    if (holes.size) {
+      smokeCtx.save();
+      smokeCtx.globalCompositeOperation = "destination-out";
+      for (const hole of holes.values()) {
+        if (hole.age < 0.26) continue;
+        const open = Math.min(1, (hole.age - 0.26) / 0.42);
+        const rad = S(18) + open * S(46);
+        const g = smokeCtx.createRadialGradient(hole.x, hole.y, rad * 0.05, hole.x, hole.y, rad);
+        g.addColorStop(0, `rgba(0,0,0,${0.82 + open * 0.18})`);
+        g.addColorStop(0.42, `rgba(0,0,0,${0.4 + open * 0.35})`);
+        g.addColorStop(0.78, `rgba(0,0,0,${0.06 + open * 0.1})`);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        smokeCtx.fillStyle = g;
+        smokeCtx.beginPath();
+        smokeCtx.arc(hole.x, hole.y, rad, 0, Math.PI * 2);
+        smokeCtx.fill();
+      }
+      smokeCtx.restore();
+    }
+    ctx.save();
+    ctx.filter = `blur(${Math.max(1.5, S(2.2))}px)`;
+    ctx.drawImage(smokeLayer, 0, 0, W, W);
+    ctx.restore();
+  }
+
+  function drawSmoke(q, target = ctx) {
+    const fade = Math.max(0, q.life / q.max);
+    const alpha = Math.pow(fade, 0.85) * q.alpha;
+    if (alpha < 0.01) return;
+    const radius = q.r;
+    const g = target.createRadialGradient(q.x, q.y, radius * 0.2, q.x, q.y, radius);
+    g.addColorStop(0, `rgba(${q.color}, ${alpha * 0.42})`);
+    g.addColorStop(0.5, `rgba(${q.color}, ${alpha * 0.16})`);
+    g.addColorStop(1, `rgba(${q.color}, 0)`);
+    target.fillStyle = g;
+    target.beginPath();
+    target.arc(q.x, q.y, radius, 0, Math.PI * 2);
+    target.fill();
+  }
+
+  function paintRoundSmoke(target, q, x, y, radius, alpha) {
+    if (alpha < 0.008 || radius < 0.5) return;
+    const g = target.createRadialGradient(x, y, radius * 0.05, x, y, radius);
+    g.addColorStop(0, `rgba(${q.color}, ${alpha * 0.9})`);
+    g.addColorStop(0.42, `rgba(${q.color}, ${alpha * 0.42})`);
+    g.addColorStop(1, `rgba(${q.color}, 0)`);
+    target.fillStyle = g;
+    target.beginPath();
+    target.arc(x, y, radius, 0, Math.PI * 2);
+    target.fill();
   }
 
   function strokePath(pts) {

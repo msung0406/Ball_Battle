@@ -40,6 +40,7 @@ export function play(name) {
   o.frequency.setValueAtTime(freq, t);
   if (name === "ko") {
     o.frequency.exponentialRampToValueAtTime(70, t + dur);
+    burstNoise(t);
   }
   if (name === "roar") {
     o.frequency.setValueAtTime(90, t);
@@ -52,4 +53,28 @@ export function play(name) {
   g.connect(ac.destination);
   o.start(t);
   o.stop(t + dur + 0.02);
+}
+
+function burstNoise(t) {
+  const dur = 0.22;
+  const frames = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, frames, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < frames; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / frames) ** 1.6;
+  }
+  const src = ac.createBufferSource();
+  const filter = ac.createBiquadFilter();
+  const g = ac.createGain();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(2200, t);
+  filter.frequency.exponentialRampToValueAtTime(140, t + dur);
+  g.gain.setValueAtTime(0.42, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.buffer = buf;
+  src.connect(filter);
+  filter.connect(g);
+  g.connect(ac.destination);
+  src.start(t);
+  src.stop(t + dur + 0.02);
 }

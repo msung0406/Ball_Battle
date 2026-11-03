@@ -1,18 +1,17 @@
 import { angleTo } from "./util.js";
 
-const NARUTO_RADIUS = 23;
-const RASENGAN_R = 14;
+const NARUTO_RADIUS = 26;
+const RASENGAN_R = (14 / 23) * NARUTO_RADIUS;
 const BOMB_SCALE = 1.5;
 
 const AIM_SLIP = (5 * Math.PI) / 180;
 
 const portraits = {
-  naruto: loadPortrait("../../assets/naruto.png"),
-  narutoBeast: loadPortrait("../../assets/naruto-phase2.png"),
+  naruto: loadPortrait("../../assets/naruto.png?v=3"),
+  narutoBeast: loadPortrait("../../assets/naruto-phase2.jpg?v=4"),
   rasengan: loadPortrait("../../assets/rasengan.png"),
   bijudama: loadPortrait("../../assets/bijudama.png"),
   kunai: null,
-  shuriken: null,
 };
 const portraitListeners = [];
 let portraitsReady = false;
@@ -36,7 +35,6 @@ function isReady(img) {
   if (img instanceof HTMLCanvasElement) return img.width > 0;
   return img.complete && img.naturalWidth > 0;
 }
-
 function loadCutout(file, key) {
   const img = new Image();
   img.onload = () => {
@@ -78,12 +76,12 @@ function cutBackground(img) {
     }
   }
   sctx.putImageData(image, 0, 0);
-  const w = Math.max(1, maxX - minX + 1);
-  const h = Math.max(1, maxY - minY + 1);
+  const cropW = Math.max(1, maxX - minX + 1);
+  const cropH = Math.max(1, maxY - minY + 1);
   const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  out.getContext("2d").drawImage(src, minX, minY, w, h, 0, 0, w, h);
+  out.width = cropW;
+  out.height = cropH;
+  out.getContext("2d").drawImage(src, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
   return out;
 }
 
@@ -102,8 +100,8 @@ export const naruto = {
   id: "naruto",
   name: "나루토",
   en: "NARUTO",
-  attack: "나선환 · 수리검",
-  desc: "손에 나선환을 모아 키운 뒤 함께 돌진해 맞춘다. 기본 상태에서는 나선환 사이에 쿠나이나 수리검을 던진다. 체력이 0이 되면 기를 모은 뒤 미수로 각성하고, 체력이 다시 찬다. 각성 중에는 더 빠르고 부딪히면 피해를 주며, 어두운 미수옥을 키워서 쏜다. 각성 후에도 쓰러지면 패배한다.",
+  attack: "나선환 · 쿠나이 · 분신",
+  desc: "손에 나선환을 모아 키운 뒤 함께 돌진해 맞춘다. 기본 상태에서는 나선환 사이에 쿠나이를 던지고, 일정 시간마다 잠깐 멈춘 뒤 모습과 공격이 같은 분신을 둘 만든다. 분신이 생기거나 맞아서 사라질 때 그 자리에서 연막과 충격파가 터지고, 본체에는 연기가 나지 않는다. 분신의 체력은 1이다. 미수로 각성한 뒤에는 분신술을 쓰지 않는다. 체력이 0이 되면 기를 모은 뒤 미수로 각성하고, 체력이 다시 찬다. 각성 중에는 더 빠르고 부딪히면 피해를 주며, 어두운 미수옥을 키워서 쏜다. 미수옥이 벽에 닿으면 주변으로 충격파가 퍼지며 터진다. 각성 후에도 쓰러지면 패배한다.",
   hp: 112,
   speed: 150,
   radius: NARUTO_RADIUS,
@@ -129,6 +127,8 @@ export const naruto = {
   bombCharge: 0.38,
   bombLaunch: 1200,
   bombCooldown: 2.05,
+  cloneEvery: 8,
+  cloneHold: 0.34,
   throwWindup: 0.24,
   throwCooldown: 1.05,
   throwSpeed: 620,
@@ -156,7 +156,7 @@ export const naruto = {
       return;
     }
     if ((ball.rasenCd || 0) > 0) {
-      ball.attack = Math.random() < 0.5 ? "kunai" : "shuriken";
+      ball.attack = "kunai";
       ball.modeT = this.throwWindup;
       ball.windupMax = this.throwWindup;
       return;
@@ -166,7 +166,9 @@ export const naruto = {
     ball.windupMax = this.rasenganWindup;
   },
   onDown(ball, api) {
+    if (ball.clone) return true;
     if (ball.form !== 1) return false;
+    api.dismissClones(ball);
     if (ball.mode !== "awaken") {
       ball.mode = "awaken";
       ball.modeT = this.awakenTime;
@@ -180,7 +182,7 @@ export const naruto = {
     return true;
   },
   control(ball, _enemy, dt, api) {
-    if (ball.mode === "awaken") {
+    if (ball.mode === "awaken" || ball.mode === "kage") {
       ball.vx = 0;
       ball.vy = 0;
       return "lock";
@@ -222,18 +224,18 @@ export const naruto = {
       ball.cd = this.bombCooldown;
       return;
     }
-    if (ball.attack === "kunai" || ball.attack === "shuriken") {
+    if (ball.attack === "kunai") {
       const ang = slip(aim);
       const dist = ball.r + api.S(8);
       const speed = api.S(this.throwSpeed);
       api.spawn({
-        kind: ball.attack,
+        kind: "kunai",
         x: ball.x + Math.cos(ang) * dist,
         y: ball.y + Math.sin(ang) * dist,
         vx: Math.cos(ang) * speed,
         vy: Math.sin(ang) * speed,
-        r: api.S(ball.attack === "kunai" ? 16 : 15),
-        damage: ball.attack === "kunai" ? 8 : 7,
+        r: api.S(16),
+        damage: 8,
         force: api.S(100),
         life: 1.2,
         bounces: 0,
@@ -259,16 +261,22 @@ export const naruto = {
   afterMove(ball, enemy, dt, api, info) {
     if (ball.form === 1 && ball.rasenCd > 0) ball.rasenCd = Math.max(0, ball.rasenCd - dt);
     if (ball.touchCd > 0) ball.touchCd -= dt;
+    if (!ball.clone && ball.form === 1 && ball.hp > 0 && ball.mode !== "awaken") {
+      if (tickShadowClone(this, ball, enemy, dt, api)) return;
+    }
     if (ball.mode === "dash") {
       const orbR = api.S(this.rasenganR);
       const dist = ball.r * 0.84;
       const ox = ball.x + Math.cos(ball.dashAng) * dist;
       const oy = ball.y + Math.sin(ball.dashAng) * dist;
-      const orbHit = Math.hypot(ox - enemy.x, oy - enemy.y) < orbR * 0.9 + enemy.r;
-      const bodyHit = Math.hypot(ball.x - enemy.x, ball.y - enemy.y) < ball.r + enemy.r;
-      if (!ball.dashHit && (orbHit || bodyHit)) {
+      const struck = api.foes(ball.i).find((foe) => {
+        const orbHit = Math.hypot(ox - foe.x, oy - foe.y) < orbR * 0.9 + foe.r;
+        const bodyHit = Math.hypot(ball.x - foe.x, ball.y - foe.y) < ball.r + foe.r;
+        return orbHit || bodyHit;
+      });
+      if (!ball.dashHit && struck) {
         ball.dashHit = true;
-        api.damage(enemy, this.rasenganDamage, ox, oy, api.S(220), {
+        api.damage(struck, this.rasenganDamage, ox, oy, api.S(220), {
           speed: api.S(this.rasenganLaunch),
           time: 0.34,
           ang: ball.dashAng,
@@ -292,6 +300,8 @@ export const naruto = {
     }
     if (ball.mode === "awaken") {
       ball.modeT -= dt;
+      const charge = 1 - Math.max(0, ball.modeT) / (ball.awakenMax || this.awakenTime);
+      api.smoke(ball.x, ball.y, ball.vx, ball.vy, Math.min(1, Math.max(0, charge)));
       if (ball.modeT > 0) return;
       const next = this.phase2;
       ball.form = 2;
@@ -323,52 +333,66 @@ export const naruto = {
   },
 };
 
+function tickShadowClone(def, ball, enemy, dt, api) {
+  if (ball.cloneCd == null) ball.cloneCd = def.cloneEvery * 0.65;
+  if (ball.mode !== "kage") ball.cloneCd -= dt;
+  if (ball.mode === "kage") {
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.modeT -= dt;
+    if (ball.modeT <= 0) ball.mode = "idle";
+    return true;
+  }
+  if (ball.cloneCd > 0 || ball.mode !== "idle") return false;
+  if ((enemy.hp <= 0 && enemy.mode !== "awaken") || api.clonesOf(ball).length >= 2) {
+    ball.cloneCd = def.cloneEvery;
+    return false;
+  }
+  ball.cloneCd = def.cloneEvery;
+  ball.mode = "kage";
+  ball.modeT = def.cloneHold;
+  ball.vx = 0;
+  ball.vy = 0;
+  castShadowClone(ball, enemy, api);
+  return true;
+}
+
+function castShadowClone(ball, enemy, api) {
+  const need = 2 - api.clonesOf(ball).length;
+  if (need <= 0) return;
+  api.sfx("pulse");
+  api.shake(5);
+  const face = Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
+  const width = api.W();
+  for (let n = 0; n < need; n += 1) {
+    const side = need === 1 ? (Math.random() < 0.5 ? -1 : 1) : n === 0 ? -1 : 1;
+    const ang = face + side * 1.2;
+    const clone = api.summonClone(ball);
+    const dist = ball.r * 2.45;
+    clone.x = Math.max(clone.r, Math.min(width - clone.r, ball.x + Math.cos(ang) * dist));
+    clone.y = Math.max(clone.r, Math.min(width - clone.r, ball.y + Math.sin(ang) * dist));
+    const speed = clone.baseSpeed || ball.baseSpeed;
+    clone.vx = Math.cos(ang) * speed;
+    clone.vy = Math.sin(ang) * speed;
+    api.cloneBurst(clone.x, clone.y, clone.r);
+  }
+}
+
 export function drawNaruto(ctx, r, form, charge, skill = 0, aim = 0) {
   const img = form === 2 ? portraits.narutoBeast : portraits.naruto;
 
-  if (form === 2) {
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    const aura = ctx.createRadialGradient(0, 0, r * 0.45, 0, 0, r * 1.55);
-    aura.addColorStop(0, "rgba(255,40,70,.8)");
-    aura.addColorStop(1, "rgba(120,0,16,0)");
-    ctx.fillStyle = aura;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 1.55, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  } else if (charge > 0) {
-    ctx.save();
-    const reach = r * (1.8 + charge * 2.8);
-    const glow = ctx.createRadialGradient(0, 0, r * 0.25, 0, 0, reach);
-    glow.addColorStop(0, `rgba(255, 42, 58, ${0.42 + charge * 0.38})`);
-    glow.addColorStop(0.42, `rgba(186, 12, 32, ${0.2 + charge * 0.22})`);
-    glow.addColorStop(1, "rgba(110, 0, 14, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(0, 0, reach, 0, Math.PI * 2);
-    ctx.fill();
-    const wave = (performance.now() / 820) % 1;
-    for (let i = 0; i < 2; i += 1) {
-      const t = (wave + i * 0.5) % 1;
-      ctx.globalAlpha = (1 - t) * (0.32 + charge * 0.48);
-      ctx.strokeStyle = "#ff3044";
-      ctx.lineWidth = Math.max(4, r * (0.2 - t * 0.1));
-      ctx.beginPath();
-      ctx.arc(0, 0, r * (1.05 + t * (1.1 + charge * 2.2)), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
+  if (form === 2) drawBeastAura(ctx, r);
+  else if (charge > 0) drawBeastAura(ctx, r, charge);
 
   ctx.save();
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.clip();
-  if (img.complete && img.naturalWidth > 0) {
-    const scale = Math.max((r * 2) / img.naturalWidth, (r * 2) / img.naturalHeight);
-    const w = img.naturalWidth * scale;
-    const h = img.naturalHeight * scale;
+  const box = portraitBox(img);
+  if (box) {
+    const scale = Math.max((r * 2) / box.w, (r * 2) / box.h);
+    const w = box.w * scale;
+    const h = box.h * scale;
     ctx.drawImage(img, -w / 2, -h / 2, w, h);
   } else {
     ctx.fillStyle = form === 2 ? "#9a1028" : "#ff7a1a";
@@ -381,14 +405,11 @@ export function drawNaruto(ctx, r, form, charge, skill = 0, aim = 0) {
   ctx.fillStyle = shade;
   ctx.fillRect(-r, -r, r * 2, r * 2);
   ctx.restore();
-
-  if (form === 2) {
-    ctx.lineWidth = Math.max(2.5, r * 0.085);
-    ctx.strokeStyle = "#ff4d6a";
-    ctx.beginPath();
-    ctx.arc(0, 0, r - ctx.lineWidth * 0.35, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  ctx.lineWidth = Math.max(2.5, r * 0.085);
+  ctx.strokeStyle = form === 2 ? "#ff4d6a" : "#ffffff";
+  ctx.beginPath();
+  ctx.arc(0, 0, r - ctx.lineWidth * 0.35, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.lineWidth = Math.max(1.25, r * 0.035);
   ctx.strokeStyle = "rgba(0,0,0,.6)";
   ctx.beginPath();
@@ -407,6 +428,27 @@ export function drawNaruto(ctx, r, form, charge, skill = 0, aim = 0) {
 
   if (form !== 2 && skill > 0) drawHeldRasengan(ctx, r, aim, skill);
 }
+function portraitBox(img) {
+  if (!img) return null;
+  if (img instanceof HTMLCanvasElement) return img.width > 0 ? { w: img.width, h: img.height } : null;
+  if (img.complete && img.naturalWidth > 0) return { w: img.naturalWidth, h: img.naturalHeight };
+  return null;
+}
+
+
+function drawBeastAura(ctx, r, fade = 1) {
+  const reach = r * 1.55;
+  ctx.save();
+  ctx.globalAlpha = 0.55 * fade;
+  const aura = ctx.createRadialGradient(0, 0, r * 0.45, 0, 0, reach);
+  aura.addColorStop(0, "rgba(255,40,70,.8)");
+  aura.addColorStop(1, "rgba(120,0,16,0)");
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, reach, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 function drawHeldRasengan(ctx, ballR, aim, skill) {
   const full = ballR * (RASENGAN_R / NARUTO_RADIUS);
@@ -421,14 +463,13 @@ export function drawSkillOrb(ctx, kind, r) {
   if (kind === "bomb") drawBeastBomb(ctx, r);
   else drawRasengan(ctx, r);
 }
-
-export function drawWeapon(ctx, kind, r, ang) {
-  const img = kind === "kunai" ? portraits.kunai : portraits.shuriken;
+export function drawWeapon(ctx, _kind, r, ang) {
+  const img = portraits.kunai;
   ctx.save();
-  ctx.rotate(kind === "kunai" ? ang - Math.PI / 2 : ang);
+  ctx.rotate(ang - Math.PI / 2);
   if (img?.width > 0) {
     const side = Math.max(img.width, img.height);
-    const scale = ((kind === "kunai" ? r * 1.9 : r * 1.65) * 2) / side;
+    const scale = (r * 1.9 * 2) / side;
     ctx.drawImage(img, (-img.width * scale) / 2, (-img.height * scale) / 2, img.width * scale, img.height * scale);
   } else {
     ctx.fillStyle = "#9aa3ad";

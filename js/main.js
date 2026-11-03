@@ -1,6 +1,6 @@
-import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=48";
-import { createMatch } from "./engine.js?v=53";
-import { toggleMute, unlockAudio } from "./sfx.js?v=27";
+import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=67";
+import { createMatch } from "./engine.js?v=95";
+import { toggleMute, unlockAudio } from "./sfx.js?v=28";
 
 const page = document.querySelector(".page");
 const dock = document.querySelector(".dock");

@@ -4,9 +4,9 @@
  * 수치는 경기장 한 변이 520px일 때의 기준값이다.
  */
 
-import { blaze } from "./blaze.js?v=35";
-import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=36";
-import { nova } from "./nova.js?v=3";
+import { blaze } from "./blaze.js?v=36";
+import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=55";
+import { nova } from "./nova.js?v=4";
 import { drawPhantom, phantom } from "./phantom.js?v=1";
 import { drawTitan, titan } from "./titan.js?v=1";
 import { drawVolt, volt } from "./volt.js?v=1";

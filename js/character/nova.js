@@ -26,8 +26,10 @@ export const nova = {
       ang,
       5,
     );
-    if (api.polylineHits(pts, enemy, api.S(7))) {
-      api.damage(enemy, 16, ball.x, ball.y, api.S(120), { color: this.color });
+    for (const foe of api.foes(ball.i)) {
+      if (api.polylineHits(pts, foe, api.S(7))) {
+        api.damage(foe, 16, ball.x, ball.y, api.S(120), { color: this.color });
+      }
     }
     api.spawn({
       kind: "beam",

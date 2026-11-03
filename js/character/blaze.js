@@ -34,9 +34,10 @@ export const blaze = {
   },
   afterMove(ball, enemy, dt, api, info) {
     if (ball.mode !== "dash") return;
-    const dist = Math.hypot(ball.x - enemy.x, ball.y - enemy.y);
-    if (dist < ball.r + enemy.r) {
-      const landed = api.damage(enemy, 17, ball.x, ball.y, api.S(190), { color: this.color });
+    const targets = api.foes ? api.foes(ball.i) : [enemy];
+    for (const foe of targets) {
+      if (Math.hypot(ball.x - foe.x, ball.y - foe.y) >= ball.r + foe.r) continue;
+      const landed = api.damage(foe, 17, ball.x, ball.y, api.S(190), { color: this.color });
       if (landed) {
         ball.mode = "idle";
         ball.cd = ball.pendingCd;
