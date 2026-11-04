@@ -7,8 +7,8 @@ const BOMB_SCALE = 1.5;
 const AIM_SLIP = (5 * Math.PI) / 180;
 
 const portraits = {
-  naruto: loadPortrait("../../assets/naruto.png?v=3"),
-  narutoBeast: loadPortrait("../../assets/naruto-phase2.jpg?v=4"),
+  naruto: loadPortrait("../../assets/naruto.png?v=4"),
+  narutoBeast: loadPortrait("../../assets/naruto-phase2.png?v=5"),
   rasengan: loadPortrait("../../assets/rasengan.png"),
   bijudama: loadPortrait("../../assets/bijudama.png"),
   kunai: null,

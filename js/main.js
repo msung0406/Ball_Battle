@@ -1,4 +1,4 @@
-import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=67";
+import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=68";
 import { createMatch } from "./engine.js?v=95";
 import { toggleMute, unlockAudio } from "./sfx.js?v=28";
 

@@ -1,4 +1,4 @@
-import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=67";
+import { drawCharacter, drawSkillOrb, drawWeapon, getCharacter } from "./character/index.js?v=68";
 import { play } from "./sfx.js?v=27";
 
 const DESIGN = 520;

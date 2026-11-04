@@ -5,7 +5,7 @@
  */
 
 import { blaze } from "./blaze.js?v=36";
-import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=55";
+import { drawNaruto, drawSkillOrb, drawWeapon, naruto, onPortraits } from "./naruto.js?v=56";
 import { nova } from "./nova.js?v=4";
 import { drawPhantom, phantom } from "./phantom.js?v=1";
 import { drawTitan, titan } from "./titan.js?v=1";
