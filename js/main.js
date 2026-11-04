@@ -1,6 +1,6 @@
-import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=75";
-import { createMatch } from "./engine.js?v=102";
-import { toggleMute, unlockAudio } from "./sfx.js?v=29";
+import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=94";
+import { createMatch } from "./engine.js?v=125";
+import { toggleMute, unlockAudio } from "./sfx.js?v=30";
 
 const page = document.querySelector(".page");
 const dock = document.querySelector(".dock");
@@ -20,11 +20,13 @@ const bannerSub = document.querySelector("#banner-sub");
 const toastEl = document.querySelector("#toast");
 const canvas = document.querySelector("#arena");
 const arenaWrap = document.querySelector(".arena-wrap");
+const arenaOpts = document.querySelectorAll(".arena-opt");
 
-let p1 = "blaze";
+let p1 = "naruto";
 let p2 = "nova";
 let toastTimer = 0;
 let bannerKey = "";
+let arenaSize = 600;
 
 const engine = createMatch(canvas, { onChange });
 
@@ -48,6 +50,31 @@ function paintPortrait(node, char, look, flash = 0) {
     look,
     flash,
   });
+}
+
+function fitOneLine(el) {
+  if (!el || el.clientWidth <= 0) return;
+  el.style.fontSize = "";
+  const max = parseFloat(getComputedStyle(el).fontSize);
+  if (!Number.isFinite(max) || max <= 0) return;
+  if (el.scrollWidth <= el.clientWidth + 0.5) return;
+  let lo = 8;
+  let hi = max;
+  for (let n = 0; n < 18; n += 1) {
+    const mid = (lo + hi) / 2;
+    el.style.fontSize = `${mid}px`;
+    if (el.scrollWidth > el.clientWidth + 0.5) hi = mid;
+    else lo = mid;
+  }
+  el.style.fontSize = `${Math.floor(lo * 10) / 10}px`;
+}
+
+function fitSelectNames() {
+  for (const el of rosterEl.querySelectorAll(".t-name")) fitOneLine(el);
+  for (const root of [info1, info2]) {
+    const name = root.querySelector("h3");
+    if (name) fitOneLine(name);
+  }
 }
 
 function renderInfo(root, id, side) {
@@ -76,6 +103,7 @@ function renderInfo(root, id, side) {
     stats.append(row);
   }
   root.append(label, name, en, stats);
+  fitSelectNames();
 }
 
 function syncRoster() {
@@ -217,6 +245,8 @@ function updateChrome(snap) {
   rosterEl.inert = snap.state !== "preview";
   rosterEl.classList.toggle("is-locked", snap.state !== "preview");
   reselectBtn.classList.toggle("is-hidden", snap.state !== "ko");
+  const arenaLocked = battling;
+  for (const btn of arenaOpts) btn.disabled = arenaLocked;
 
   if (snap.state === "preview") {
     fightBtn.disabled = p1 === p2;
@@ -276,6 +306,23 @@ function onChange(snap) {
   applyShake(snap.shake);
 }
 
+function setArenaSize(size) {
+  const mode = engine.getState();
+  if (mode === "fight" || mode === "countdown") return;
+  arenaSize = size === 300 ? 300 : 600;
+  document.documentElement.style.setProperty("--arena", `${arenaSize}px`);
+  engine.setArena(arenaSize);
+  for (const btn of arenaOpts) {
+    btn.setAttribute("aria-pressed", String(Number(btn.dataset.arena) === arenaSize));
+  }
+}
+
+document.querySelector(".arena-pick")?.addEventListener("click", (event) => {
+  const btn = event.target.closest(".arena-opt");
+  if (!btn) return;
+  setArenaSize(Number(btn.dataset.arena));
+});
+
 fightBtn.addEventListener("click", () => {
   unlockAudio();
   const mode = engine.getState();
@@ -331,6 +378,11 @@ window.addEventListener("keydown", (event) => {
 });
 
 buildRoster();
+const namesWatch = new ResizeObserver(() => fitSelectNames());
+namesWatch.observe(rosterEl);
+namesWatch.observe(info1);
+namesWatch.observe(info2);
+document.fonts.ready.then(fitSelectNames);
 onPortraits(() => {
   for (const token of rosterEl.querySelectorAll(".token")) {
     const face = token.querySelector("canvas");

@@ -9,6 +9,7 @@ const portraits = {
   naruto: loadPortrait("../../assets/naruto/naruto.png?v=6"),
   rasengan: loadPortrait("../../assets/naruto/rasengan.png"),
   kunai: null,
+  shuriken: loadPortrait("../../assets/naruto/shuriken.png"),
 };
 const portraitListeners = [];
 let portraitsReady = false;
@@ -21,7 +22,6 @@ function loadPortrait(file) {
 }
 
 loadCutout("../../assets/naruto/kunai.png", "kunai");
-loadCutout("../../assets/naruto/shuriken.png", "shuriken");
 
 function slip(ang) {
   return ang + (Math.random() * 2 - 1) * AIM_SLIP;
@@ -95,70 +95,78 @@ export function onPortraits(fn) {
 
 export const naruto = {
   id: "naruto",
-  name: "나루토",
-  en: "NARUTO",
+  name: "우즈마키 나루토",
+  en: " UZUMAKI NARUTO",
   hp: 200,
-  speed: 180,
+  speed: 150,
   radius: NARUTO_RADIUS,
   color: "#ff7a1a",
   highlight: "#ffe7b0",
   shade: "#7a2208",
-  rasenganCharge: 2,
-  rasenganCooldown: 2,
-  rasenganDamage: 16,
-  rasenganDashSpeed: 720,
+  /** ========== 나선환 ==========  */
+  rasenganCharge: 1,
+  rasenganCooldown: 4,
+  rasenganDamage: 4,
+  rasenganDashSpeed: 600,
+  rasenganKnockbackSpeed: 600,
+  /** 나선환 적중 피해 횟수 */
+  rasenganHits: 5,
+  /** 나선환 적중 피해 간격(초) */
+  rasenganHitInterval: 0.1,
   rasenganTrack: true,
-  rasenganTelegraph: false,
+  rasenganTelegraph: true,
+  /** 나선환 반지름 */
   rasenganRadius: RASENGAN_R,
-  /** 나선환 충전 중의 이동 속도 배율 */
+  /** 나선환 충전 중 이동 속도 배율 */
   rasenganMoveScale: 0.75,
-  /** 나선환 돌진 유지 시간 */
   rasenganDashTime: 0.5,
-  kunaiCharge: 0.25,
-  kunaiCooldown: 1,
+  /** ========== 쿠나이 ==========  */
+  kunaiCharge: 0,
+  kunaiCooldown: 0.75,
   kunaiDamage: 8,
-  kunaiThrowSpeed: 720,
+  kunaiThrowSpeed: 900,
+  kunaiKnockbackForce: 100,
   kunaiTrack: true,
   kunaiTelegraph: false,
+  /** ========== 그림자 분신 ==========  */
   cloneCharge: 0.5,
-  cloneCooldown: 8,
+  cloneCooldown: 10,
   cloneTrack: false,
   cloneTelegraph: false,
+  /** 그림자 분신 충전 중 이동 속도 배율 */
+  cloneMoveScale: 0,
+  /** 그림자분신 소환 수 */
+  cloneSummon: 2,
+  /** 최대 그림자분신 수 */
+  cloneMax: 4,
+  /** ========== 시작 쿨타임 ==========  */
   initCds(ball) {
     ball.cds = {
-      rasengan: 0,
+      rasengan: this.rasenganCooldown,
       kunai: 0,
       clone: this.cloneCooldown,
     };
   },
   readySkill(ball, enemy, api) {
-    if ((ball.cds.rasengan ?? 0) <= 0) return "rasengan";
-    if ((ball.cds.kunai ?? 0) <= 0) return "kunai";
-    if (!ball.clone && enemy.hp > 0 && (ball.cds.clone ?? 0) <= 0 && api.clonesOf(ball).length < 2) {
+    if (!ball.clone && enemy.hp > 0 && (ball.cds.clone ?? 0) <= 0 && api.clonesOf(ball).length < this.cloneMax) {
       return "clone";
     }
+    if ((ball.cds.rasengan ?? 0) <= 0) return "rasengan";
+    if ((ball.cds.kunai ?? 0) <= 0) return "kunai";
     return null;
-  },
-  start(ball, enemy, api) {
-    if (ball.attack === "clone") {
-      ball.mode = "kage";
-      ball.modeT = this.cloneCharge;
-      ball.vx = 0;
-      ball.vy = 0;
-      castShadowClone(ball, enemy, api);
-    }
   },
   moveScale(ball) {
     if (ball.attack === "rasengan") return this.rasenganMoveScale;
+    if (ball.attack === "clone") return this.cloneMoveScale;
     return 1;
   },
   control(ball, _enemy, _dt, api) {
-    if (ball.mode === "kage") {
+    if (ball.mode !== "dash") return;
+    if (ball.rasenganCombo) {
       ball.vx = 0;
       ball.vy = 0;
       return "lock";
     }
-    if (ball.mode !== "dash") return;
     const speed = api.S(this.rasenganDashSpeed);
     ball.vx = Math.cos(ball.dashAng) * speed;
     ball.vy = Math.sin(ball.dashAng) * speed;
@@ -168,26 +176,30 @@ export const naruto = {
     const aim = ball.aim ?? angleTo(ball, enemy);
     if (ball.attack === "kunai") {
       const ang = slip(aim);
+      const shuriken = Math.random() < 0.5;
       const dist = ball.r + api.S(9.2);
       const speed = api.S(this.kunaiThrowSpeed);
       api.spawn({
-        kind: "kunai",
+        kind: shuriken ? "shuriken" : "kunai",
         x: ball.x + Math.cos(ang) * dist,
         y: ball.y + Math.sin(ang) * dist,
         vx: Math.cos(ang) * speed,
         vy: Math.sin(ang) * speed,
-        r: api.S(18.5),
+        r: api.S(18.5) * (shuriken ? 0.5 : 1),
         damage: this.kunaiDamage,
-        force: api.S(115.4),
+        force: api.S(this.kunaiKnockbackForce),
         life: 1.2,
-        bounces: 0,
         owner: ball.i,
         color: "#d7dde6",
-        shock: "#d7dde6",
-        spin: 0,
+        spin: shuriken ? Math.random() * Math.PI * 2 : 0,
       });
       ball.mode = "idle";
       api.sfx("shot");
+      return;
+    }
+    if (ball.attack === "clone") {
+      castShadowClone(ball, enemy, api);
+      ball.mode = "idle";
       return;
     }
     ball.mode = "dash";
@@ -199,27 +211,28 @@ export const naruto = {
   },
   afterMove(ball, _enemy, dt, api, info) {
     if (ball.mode !== "dash") return;
+    if (ball.rasenganCombo) {
+      tickRasengan(ball, dt, api);
+      return;
+    }
     const orbR = api.S(this.rasenganRadius);
-    const dist = ball.r * 0.84;
-    const ox = ball.x + Math.cos(ball.dashAng) * dist;
-    const oy = ball.y + Math.sin(ball.dashAng) * dist;
-    const struck = api.foes(ball.i).find((foe) => {
-      const orbHit = Math.hypot(ox - foe.x, oy - foe.y) < orbR * 0.9 + foe.r;
-      const bodyHit = Math.hypot(ball.x - foe.x, ball.y - foe.y) < ball.r + foe.r;
-      return orbHit || bodyHit;
-    });
+    const orb = rasenganOrb(ball);
+    const struck = api.foes(ball.i).find(
+      (foe) => Math.hypot(orb.x - foe.x, orb.y - foe.y) < orbR + foe.r,
+    );
     if (!ball.dashHit && struck) {
       ball.dashHit = true;
-      api.damage(struck, this.rasenganDamage, ox, oy, api.S(253.8), {
-        speed: api.S(this.rasenganDashSpeed),
-        time: 0.34,
-        ang: ball.dashAng,
-        color: "#7adfff",
-      });
-      ball.mode = "idle";
+      startRasenganCombo(ball, struck, api);
       return;
     }
     if (info?.wall) {
+      ball.mode = "idle";
+      return;
+    }
+    const bodyHit = api.foes(ball.i).some(
+      (foe) => Math.hypot(ball.x - foe.x, ball.y - foe.y) < ball.r + foe.r,
+    );
+    if (bodyHit) {
       ball.mode = "idle";
       return;
     }
@@ -228,11 +241,105 @@ export const naruto = {
   },
 };
 
+function rasenganOrb(ball) {
+  return {
+    x: ball.x + Math.cos(ball.dashAng) * ball.r,
+    y: ball.y + Math.sin(ball.dashAng) * ball.r,
+  };
+}
+
+function freezePair(a, b) {
+  a.vx = 0;
+  a.vy = 0;
+  b.vx = 0;
+  b.vy = 0;
+}
+
+function holdPair(a, b) {
+  freezePair(a, b);
+  a.recoil = Math.max(a.recoil, 0.05);
+  b.recoil = Math.max(b.recoil, 0.05);
+}
+
+function startRasenganCombo(ball, target, api) {
+  if (target.rasenganStun) {
+    ball.mode = "idle";
+    return;
+  }
+  if (target.rasenganCombo) endRasenganCombo(target);
+  if (target.mode === "dash") {
+    target.mode = "idle";
+    target.dashHit = true;
+  }
+  target.rasenganStun = true;
+  freezePair(ball, target);
+  ball.rasenganCombo = {
+    target,
+    hitsLeft: naruto.rasenganHits,
+    wait: 0,
+    x: ball.x,
+    y: ball.y,
+    tx: target.x,
+    ty: target.y,
+  };
+  tickRasengan(ball, 0, api);
+}
+
+function tickRasengan(ball, dt, api) {
+  const combo = ball.rasenganCombo;
+  if (!combo) return;
+  const target = combo.target;
+  if (!target || target.hp <= 0 || target.poofed) {
+    endRasenganCombo(ball);
+    return;
+  }
+  ball.x = combo.x;
+  ball.y = combo.y;
+  target.x = combo.tx;
+  target.y = combo.ty;
+  holdPair(ball, target);
+  combo.wait -= dt;
+  if (combo.wait > 0) return;
+
+  const last = combo.hitsLeft <= 1;
+  const first = combo.hitsLeft === naruto.rasenganHits;
+  const orb = rasenganOrb(ball);
+  const launch = {
+    ang: ball.dashAng,
+    color: "#7adfff",
+  };
+  if (last) {
+    launch.speed = api.S(naruto.rasenganKnockbackSpeed);
+    launch.time = 0.34;
+  }
+  const landed = api.damage(target, naruto.rasenganDamage, orb.x, orb.y, 0, launch);
+  if (landed && last) api.shake(16);
+  combo.hitsLeft -= 1;
+  if (!landed && first) {
+    endRasenganCombo(ball);
+    return;
+  }
+  if (last || target.hp <= 0 || target.poofed) {
+    endRasenganCombo(ball);
+    return;
+  }
+  combo.wait += naruto.rasenganHitInterval;
+}
+
+function endRasenganCombo(ball) {
+  const target = ball.rasenganCombo?.target;
+  ball.rasenganCombo = null;
+  ball.mode = "idle";
+  ball.recoil = 0;
+  if (target) target.rasenganStun = false;
+}
+
 function castShadowClone(ball, enemy, api) {
-  const need = 2 - api.clonesOf(ball).length;
+  const have = api.clonesOf(ball).length;
+  const need = Math.min(naruto.cloneSummon, naruto.cloneMax - have);
   if (need <= 0) return;
   api.sfx("pulse");
-  api.shake(5);
+  api.shake(8);
   const face = Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
   const width = api.W();
   for (let n = 0; n < need; n += 1) {
@@ -293,20 +400,17 @@ function portraitBox(img) {
   return null;
 }
 
-function drawHeldRasengan(ctx, ballR, aim, skill) {
+export function drawHeldRasengan(ctx, ballR, aim, skill) {
   const full = ballR * (RASENGAN_R / NARUTO_RADIUS);
   const orb = full * (0.18 + 0.82 * skill);
   ctx.save();
-  ctx.translate(Math.cos(aim) * ballR * 0.84, Math.sin(aim) * ballR * 0.84);
+  ctx.translate(Math.cos(aim) * ballR, Math.sin(aim) * ballR);
   drawRasengan(ctx, orb);
   ctx.restore();
 }
 
-export function drawSkillOrb(ctx, _kind, r) {
-  drawRasengan(ctx, r);
-}
-export function drawWeapon(ctx, _kind, r, ang) {
-  const img = portraits.kunai;
+export function drawWeapon(ctx, kind, r, ang) {
+  const img = kind === "shuriken" ? portraits.shuriken : portraits.kunai;
   ctx.save();
   ctx.rotate(ang - Math.PI / 2);
   if (img?.width > 0) {

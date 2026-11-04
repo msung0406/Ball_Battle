@@ -2,19 +2,18 @@ export const nova = {
   id: "nova",
   name: "노바",
   en: "NOVA",
-  hp: 112,
-  speed: 167.3,
-  radius: 23.1,
+  hp: 4000,
+  speed: 220,
+  radius: 23,
   color: "#19d4ef",
   highlight: "#e9fdff",
   shade: "#065e78",
-  laserCharge: 0.38,
-  laserCooldown: 1.62,
+  laserCharge: 0.3,
+  laserCooldown: 1,
   laserDamage: 16,
   laserTrack: false,
   laserTelegraph: true,
-  /** 레이저가 맞았을 때 상대가 밀려나는 힘 */
-  laserKnockback: 138.5,
+  laserKnockbackForce: 138.5,
   initCds(ball) {
     ball.cds = { laser: 0 };
   },
@@ -27,11 +26,11 @@ export const nova = {
       ball.x + Math.cos(ang) * (ball.r + api.S(4.6)),
       ball.y + Math.sin(ang) * (ball.r + api.S(4.6)),
       ang,
-      5,
+      2,
     );
     for (const foe of api.foes(ball.i)) {
       if (api.polylineHits(pts, foe, api.S(8.1))) {
-        api.damage(foe, this.laserDamage, ball.x, ball.y, api.S(this.laserKnockback), { color: this.color });
+        api.damage(foe, this.laserDamage, ball.x, ball.y, api.S(this.laserKnockbackForce), { color: this.color });
       }
     }
     api.spawn({

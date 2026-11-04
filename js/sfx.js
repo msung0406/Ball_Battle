@@ -8,7 +8,6 @@ const presets = {
   laser: [960, 0.1, "square", 0.028],
   shot: [640, 0.05, "square", 0.03],
   pulse: [90, 0.22, "sine", 0.05],
-  blink: [720, 0.09, "triangle", 0.03],
   hit: [150, 0.07, "square", 0.04],
   ko: [210, 0.42, "sawtooth", 0.05],
 };
