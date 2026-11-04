@@ -2,32 +2,36 @@ export const titan = {
   id: "titan",
   name: "타이탄",
   en: "TITAN",
-  attack: "지진파",
-  desc: "느리지만 단단하다. 몸을 중심으로 충격파를 펼쳐 닿는 상대를 밀어낸다.",
   hp: 170,
-  speed: 92,
-  radius: 28,
-  windup: 0.52,
-  cooldown: 2.75,
-  aggression: 0.62,
-  track: false,
-  telegraph: false,
+  speed: 106.2,
+  radius: 32.3,
   color: "#8b97ab",
   highlight: "#f3f6fb",
   shade: "#2c3342",
   band: "#e6b84e",
   eyeShift: -0.36,
+  shockCharge: 0.52,
+  shockCooldown: 2.75,
+  shockDamage: 20,
+  shockTrack: false,
+  shockTelegraph: false,
+  initCds(ball) {
+    ball.cds = { shock: 0 };
+  },
+  readySkill(ball) {
+    return (ball.cds.shock ?? 0) <= 0 ? "shock" : null;
+  },
   release(ball, _enemy, api) {
     api.spawn({
       kind: "ring",
       x: ball.x,
       y: ball.y,
-      radius: ball.r + api.S(6),
+      radius: ball.r + api.S(6.9),
       prev: ball.r,
-      grow: api.S(430),
-      maxR: api.S(172),
-      damage: 20,
-      force: api.S(250),
+      grow: api.S(496.2),
+      maxR: api.S(198.5),
+      damage: this.shockDamage,
+      force: api.S(288.5),
       owner: ball.i,
       color: this.band,
       didHit: false,
@@ -35,7 +39,6 @@ export const titan = {
     });
     api.sfx("pulse");
     ball.mode = "idle";
-    ball.cd = this.cooldown;
   },
 };
 

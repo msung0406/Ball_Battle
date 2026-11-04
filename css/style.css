@@ -439,19 +439,6 @@ h1 {
   font-weight: 800;
 }
 
-.attack {
-  margin: 0;
-  color: var(--accent, var(--gold));
-  font-weight: 800;
-}
-
-.desc {
-  margin: 4px 0 0;
-  color: #c5ccda;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .info-right { text-align: right; }
 
 .roster {
@@ -485,18 +472,11 @@ h1 {
   margin: 0 auto;
 }
 
-.t-name,
-.t-attack { display: block; }
-
 .t-name {
+  display: block;
   margin-top: 2px;
   font-size: 14px;
   font-weight: 800;
-}
-
-.t-attack {
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .token-main:hover { border-color: rgba(255, 255, 255, 0.42); transform: translateY(-2px); }

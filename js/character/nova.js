@@ -2,33 +2,36 @@ export const nova = {
   id: "nova",
   name: "노바",
   en: "NOVA",
-  attack: "난사 레이저",
-  desc: "무작위 방향으로 레이저를 쏜다. 빛은 경기장 벽에서 다섯 번 튕긴 뒤 사라진다.",
   hp: 112,
-  speed: 145,
-  radius: 20,
-  windup: 0.38,
-  cooldown: 1.62,
-  aggression: 0.28,
-  track: false,
-  telegraph: true,
+  speed: 167.3,
+  radius: 23.1,
   color: "#19d4ef",
   highlight: "#e9fdff",
   shade: "#065e78",
-  begin(ball) {
-    ball.aim = Math.random() * Math.PI * 2;
+  laserCharge: 0.38,
+  laserCooldown: 1.62,
+  laserDamage: 16,
+  laserTrack: false,
+  laserTelegraph: true,
+  /** 레이저가 맞았을 때 상대가 밀려나는 힘 */
+  laserKnockback: 138.5,
+  initCds(ball) {
+    ball.cds = { laser: 0 };
   },
-  release(ball, enemy, api) {
+  readySkill(ball) {
+    return (ball.cds.laser ?? 0) <= 0 ? "laser" : null;
+  },
+  release(ball, _enemy, api) {
     const ang = ball.aim ?? Math.random() * Math.PI * 2;
     const pts = api.castLaser(
-      ball.x + Math.cos(ang) * (ball.r + api.S(4)),
-      ball.y + Math.sin(ang) * (ball.r + api.S(4)),
+      ball.x + Math.cos(ang) * (ball.r + api.S(4.6)),
+      ball.y + Math.sin(ang) * (ball.r + api.S(4.6)),
       ang,
       5,
     );
     for (const foe of api.foes(ball.i)) {
-      if (api.polylineHits(pts, foe, api.S(7))) {
-        api.damage(foe, 16, ball.x, ball.y, api.S(120), { color: this.color });
+      if (api.polylineHits(pts, foe, api.S(8.1))) {
+        api.damage(foe, this.laserDamage, ball.x, ball.y, api.S(this.laserKnockback), { color: this.color });
       }
     }
     api.spawn({
@@ -42,6 +45,5 @@ export const nova = {
     });
     api.sfx("laser");
     ball.mode = "idle";
-    ball.cd = this.cooldown;
   },
 };

@@ -1,6 +1,6 @@
-import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=68";
-import { createMatch } from "./engine.js?v=95";
-import { toggleMute, unlockAudio } from "./sfx.js?v=28";
+import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=75";
+import { createMatch } from "./engine.js?v=102";
+import { toggleMute, unlockAudio } from "./sfx.js?v=29";
 
 const page = document.querySelector(".page");
 const dock = document.querySelector(".dock");
@@ -37,7 +37,7 @@ function toast(message) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
 }
 
-function paintPortrait(node, char, look, flash = 0, form = 1, charge = 0) {
+function paintPortrait(node, char, look, flash = 0) {
   const ctx = node.getContext("2d");
   const w = node.width;
   ctx.clearRect(0, 0, w, w);
@@ -47,8 +47,6 @@ function paintPortrait(node, char, look, flash = 0, form = 1, charge = 0) {
     r: w * 0.3,
     look,
     flash,
-    form,
-    charge,
   });
 }
 
@@ -77,13 +75,7 @@ function renderInfo(root, id, side) {
     row.append(dt, dd);
     stats.append(row);
   }
-  const attack = document.createElement("p");
-  attack.className = "attack";
-  attack.textContent = char.attack;
-  const desc = document.createElement("p");
-  desc.className = "desc";
-  desc.textContent = char.desc;
-  root.append(label, name, en, stats, attack, desc);
+  root.append(label, name, en, stats);
 }
 
 function syncRoster() {
@@ -147,10 +139,7 @@ function buildRoster() {
     const name = document.createElement("span");
     name.className = "t-name";
     name.textContent = char.name;
-    const attack = document.createElement("span");
-    attack.className = "t-attack";
-    attack.textContent = char.attack;
-    main.append(face, name, attack);
+    main.append(face, name);
 
     const asP2 = document.createElement("button");
     asP2.type = "button";
@@ -214,7 +203,7 @@ function updateHud(snap) {
     node.fighter.classList.toggle("is-out", snap.winner !== 0 && snap.winner !== fighter.player);
     node.fighter.style.setProperty("--ball", char.color);
     setMeter(node.fill, node.meter, node.text, node.max, fighter.hp, fighter.maxHp);
-    paintPortrait(node.port, char, node.look, fighter.flash, fighter.form, fighter.charge);
+    paintPortrait(node.port, char, node.look, fighter.flash);
   });
 }
 

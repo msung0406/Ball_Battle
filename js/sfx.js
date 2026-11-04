@@ -11,7 +11,6 @@ const presets = {
   blink: [720, 0.09, "triangle", 0.03],
   hit: [150, 0.07, "square", 0.04],
   ko: [210, 0.42, "sawtooth", 0.05],
-  roar: [90, 0.38, "sawtooth", 0.05],
 };
 
 export function unlockAudio() {
@@ -41,11 +40,6 @@ export function play(name) {
   if (name === "ko") {
     o.frequency.exponentialRampToValueAtTime(70, t + dur);
     burstNoise(t);
-  }
-  if (name === "roar") {
-    o.frequency.setValueAtTime(90, t);
-    o.frequency.exponentialRampToValueAtTime(240, t + 0.14);
-    o.frequency.exponentialRampToValueAtTime(55, t + dur);
   }
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);

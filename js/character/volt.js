@@ -4,33 +4,38 @@ export const volt = {
   id: "volt",
   name: "볼트",
   en: "VOLT",
-  attack: "삼연탄",
-  desc: "상대를 향해 탄환 세 발을 퍼붓는다. 탄환은 벽에 튕기다가 수명이 다하면 사라진다.",
   hp: 86,
-  speed: 215,
-  radius: 17,
-  windup: 0.14,
-  cooldown: 1.22,
-  aggression: 0.48,
-  track: true,
-  telegraph: true,
+  speed: 248.1,
+  radius: 19.6,
   color: "#ffd230",
   highlight: "#fff6c8",
   shade: "#a36b00",
+  burstCharge: 0.14,
+  burstCooldown: 1.22,
+  burstDamage: 7,
+  burstThrowSpeed: 450,
+  burstTrack: true,
+  burstTelegraph: true,
+  initCds(ball) {
+    ball.cds = { burst: 0 };
+  },
+  readySkill(ball) {
+    return (ball.cds.burst ?? 0) <= 0 ? "burst" : null;
+  },
   release(ball, enemy, api) {
     const base = ball.aim ?? angleTo(ball, enemy);
-    const speed = api.S(390);
+    const speed = api.S(this.burstThrowSpeed);
     for (const off of [-0.28, 0, 0.28]) {
       const ang = base + off;
       api.spawn({
         kind: "bullet",
-        x: ball.x + Math.cos(ang) * (ball.r + api.S(8)),
-        y: ball.y + Math.sin(ang) * (ball.r + api.S(8)),
+        x: ball.x + Math.cos(ang) * (ball.r + api.S(9.2)),
+        y: ball.y + Math.sin(ang) * (ball.r + api.S(9.2)),
         vx: Math.cos(ang) * speed,
         vy: Math.sin(ang) * speed,
-        r: api.S(4.5),
-        damage: 7,
-        force: api.S(70),
+        r: api.S(5.2),
+        damage: this.burstDamage,
+        force: api.S(80.8),
         life: 2.15,
         bounces: 3,
         owner: ball.i,
@@ -40,7 +45,6 @@ export const volt = {
     }
     api.sfx("shot");
     ball.mode = "idle";
-    ball.cd = this.cooldown;
   },
 };
 
