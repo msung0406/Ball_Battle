@@ -5,7 +5,6 @@ const presets = {
   tick: [520, 0.07, "square", 0.03],
   fight: [740, 0.12, "square", 0.04],
   dash: [170, 0.14, "sawtooth", 0.035],
-  laser: [960, 0.1, "square", 0.028],
   shot: [640, 0.05, "square", 0.03],
   pulse: [90, 0.22, "sine", 0.05],
   hit: [150, 0.07, "square", 0.04],

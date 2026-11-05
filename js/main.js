@@ -1,6 +1,6 @@
-import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=94";
-import { createMatch } from "./engine.js?v=125";
-import { toggleMute, unlockAudio } from "./sfx.js?v=30";
+import { drawCharacter, getCharacter, onPortraits, roster } from "./character/index.js?v=101";
+import { createMatch } from "./engine.js?v=132";
+import { toggleMute, unlockAudio } from "./sfx.js?v=31";
 
 const page = document.querySelector(".page");
 const dock = document.querySelector(".dock");
@@ -23,7 +23,7 @@ const arenaWrap = document.querySelector(".arena-wrap");
 const arenaOpts = document.querySelectorAll(".arena-opt");
 
 let p1 = "naruto";
-let p2 = "nova";
+let p2 = "ichigo";
 let toastTimer = 0;
 let bannerKey = "";
 let arenaSize = 600;
@@ -39,7 +39,7 @@ function toast(message) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
 }
 
-function paintPortrait(node, char, look, flash = 0) {
+function paintPortrait(node, char, flash = 0) {
   const ctx = node.getContext("2d");
   const w = node.width;
   ctx.clearRect(0, 0, w, w);
@@ -47,7 +47,6 @@ function paintPortrait(node, char, look, flash = 0) {
     x: w / 2,
     y: w / 2 + w * 0.03,
     r: w * 0.3,
-    look,
     flash,
   });
 }
@@ -162,7 +161,7 @@ function buildRoster() {
     const face = document.createElement("canvas");
     face.width = 144;
     face.height = 144;
-    paintPortrait(face, char, -0.4);
+    paintPortrait(face, char);
 
     const name = document.createElement("span");
     name.className = "t-name";
@@ -210,7 +209,6 @@ function updateHud(snap) {
       meter: document.querySelector("#meter1"),
       text: document.querySelector("#hptext1"),
       max: document.querySelector("#hpmax1"),
-      look: 0.2,
     },
     {
       fighter: document.querySelector("#fighter2"),
@@ -220,7 +218,6 @@ function updateHud(snap) {
       meter: document.querySelector("#meter2"),
       text: document.querySelector("#hptext2"),
       max: document.querySelector("#hpmax2"),
-      look: Math.PI - 0.2,
     },
   ];
   snap.fighters.forEach((fighter, index) => {
@@ -231,7 +228,7 @@ function updateHud(snap) {
     node.fighter.classList.toggle("is-out", snap.winner !== 0 && snap.winner !== fighter.player);
     node.fighter.style.setProperty("--ball", char.color);
     setMeter(node.fill, node.meter, node.text, node.max, fighter.hp, fighter.maxHp);
-    paintPortrait(node.port, char, node.look, fighter.flash);
+    paintPortrait(node.port, char, fighter.flash);
   });
 }
 
@@ -387,7 +384,7 @@ onPortraits(() => {
   for (const token of rosterEl.querySelectorAll(".token")) {
     const face = token.querySelector("canvas");
     const char = getCharacter(token.dataset.id);
-    if (face && char) paintPortrait(face, char, -0.4);
+    if (face && char) paintPortrait(face, char);
   }
 });
 syncRoster();

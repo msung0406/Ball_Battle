@@ -1,5 +1,5 @@
-import { drawCharacter, drawWeapon, getCharacter } from "./character/index.js?v=94";
-import { play } from "./sfx.js?v=30";
+import { drawCharacter, drawGetsuga, drawWeapon, getCharacter } from "./character/index.js?v=101";
+import { play } from "./sfx.js?v=31";
 
 export function createMatch(canvas, { onChange }) {
   const ctx = canvas.getContext("2d");
@@ -44,8 +44,6 @@ export function createMatch(canvas, { onChange }) {
     clonesOf,
     foes,
     sfx: play,
-    castLaser,
-    polylineHits,
   };
 
   function S(n) {
@@ -472,12 +470,8 @@ export function createMatch(canvas, { onChange }) {
         p.life = 0;
         continue;
       }
-      if (p.kind === "beam" || p.kind === "shock") {
-        if (p.kind === "shock") {
-          growShock(p, dt);
-          continue;
-        }
-        p.life -= dt;
+      if (p.kind === "shock") {
+        growShock(p, dt);
         continue;
       }
       if (p.stuck) {
@@ -807,41 +801,6 @@ export function createMatch(canvas, { onChange }) {
     }
   }
 
-  function castLaser(x, y, ang, maxBounces) {
-    let cx = Math.max(1, Math.min(W - 1, x));
-    let cy = Math.max(1, Math.min(W - 1, y));
-    const pts = [{ x: cx, y: cy }];
-    let dx = Math.cos(ang);
-    let dy = Math.sin(ang);
-    for (let i = 0; i <= maxBounces; i += 1) {
-      const hits = [];
-      if (dx > 1e-6) hits.push({ t: (W - cx) / dx, axis: "x", sign: -1 });
-      if (dx < -1e-6) hits.push({ t: (0 - cx) / dx, axis: "x", sign: 1 });
-      if (dy > 1e-6) hits.push({ t: (W - cy) / dy, axis: "y", sign: -1 });
-      if (dy < -1e-6) hits.push({ t: (0 - cy) / dy, axis: "y", sign: 1 });
-      hits.sort((a, b) => a.t - b.t);
-      const hit = hits.find((h) => h.t > 1e-3 && Number.isFinite(h.t));
-      if (!hit) break;
-      cx += dx * hit.t;
-      cy += dy * hit.t;
-      pts.push({ x: cx, y: cy });
-      if (i === maxBounces) break;
-      if (hit.axis === "x") dx = -dx;
-      else dy = -dy;
-      if (hit.axis === "x") cx += hit.sign;
-      else cy += hit.sign;
-    }
-    return pts;
-  }
-
-  function polylineHits(pts, target, pad) {
-    const r = target.r + pad;
-    for (let i = 0; i < pts.length - 1; i += 1) {
-      if (segmentHits(pts[i], pts[i + 1], target.x, target.y, r)) return true;
-    }
-    return false;
-  }
-
   function countLabel(left) {
     if (left > 2.2) return "3";
     if (left > 1.4) return "2";
@@ -1065,22 +1024,12 @@ export function createMatch(canvas, { onChange }) {
 
   function drawProjectile(p) {
     ctx.save();
-    if (p.kind === "beam" && p.pts?.length > 1) {
-      const alpha = Math.max(0, p.life / p.max);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.globalAlpha = alpha * 0.4;
-      ctx.strokeStyle = p.glow || p.color;
-      ctx.lineWidth = S(13.8);
-      strokePath(p.pts);
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = "#f5feff";
-      ctx.lineWidth = S(2.8);
-      strokePath(p.pts);
-    } else if (p.kind === "kunai" || p.kind === "shuriken") {
+    if (p.kind === "kunai" || p.kind === "shuriken") {
       ctx.translate(p.x, p.y);
       const ang = p.stuck ? p.stickAng : p.kind === "shuriken" ? p.spin || 0 : Math.atan2(p.vy, p.vx);
       drawWeapon(ctx, p.kind, p.r, ang);
+    } else if (p.kind === "getsuga") {
+      drawGetsuga(ctx, p);
     } else if (p.kind === "shock") {
       const fade = Math.max(0, p.life / (p.max || 1));
       ctx.globalAlpha = fade;
@@ -1182,12 +1131,6 @@ export function createMatch(canvas, { onChange }) {
     target.fill();
   }
 
-  function strokePath(pts) {
-    ctx.beginPath();
-    pts.forEach((pt, i) => (i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y)));
-    ctx.stroke();
-  }
-
   function startLoop() {
     if (!raf) raf = requestAnimationFrame(frame);
   }
@@ -1197,16 +1140,4 @@ export function createMatch(canvas, { onChange }) {
 
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
-}
-
-function segmentHits(a, b, cx, cy, r) {
-  const vx = b.x - a.x;
-  const vy = b.y - a.y;
-  const len2 = vx * vx + vy * vy;
-  if (len2 < 1) return Math.hypot(cx - a.x, cy - a.y) <= r;
-  let t = ((cx - a.x) * vx + (cy - a.y) * vy) / len2;
-  t = clamp(t, 0, 1);
-  const px = a.x + vx * t;
-  const py = a.y + vy * t;
-  return Math.hypot(cx - px, cy - py) <= r;
 }
