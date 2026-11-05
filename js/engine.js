@@ -1,4 +1,4 @@
-import { drawCharacter, drawGetsuga, drawWeapon, getCharacter } from "./character/index.js?v=101";
+import { drawCharacter, drawGetsuga, drawWeapon, getCharacter } from "./character/index.js?v=115";
 import { play } from "./sfx.js?v=31";
 
 export function createMatch(canvas, { onChange }) {
@@ -43,6 +43,7 @@ export function createMatch(canvas, { onChange }) {
     summonClone,
     clonesOf,
     foes,
+    nearestFoe,
     sfx: play,
   };
 
@@ -270,7 +271,7 @@ export function createMatch(canvas, { onChange }) {
     const fighting = state === "fight";
     for (const ball of balls) {
       if (ball.poofed) continue;
-      const enemy = balls[1 - ball.i];
+      const enemy = nearestFoe(ball) || balls[1 - ball.i];
       const def = getCharacter(ball.charId);
       let lock = false;
       if (fighting && ball.hp > 0 && ball.cds) {
@@ -279,12 +280,24 @@ export function createMatch(canvas, { onChange }) {
         }
       }
       if (fighting && ball.recoil > 0) {
+        if (ball.recoilSpeed0 != null && ball.recoilMax > 0) {
+          const shape = 3;
+          const elapsed = Math.max(0, ball.recoilMax - ball.recoil);
+          const k = shape / ball.recoilMax;
+          // ease-in: hold knockback early, dump speed near the end
+          const u = (Math.exp(k * elapsed) - 1) / (Math.exp(shape) - 1);
+          const speed = ball.recoilSpeed0 + (ball.recoilSpeed1 - ball.recoilSpeed0) * Math.min(1, Math.max(0, u));
+          const ang = ball.recoilAng ?? 0;
+          ball.vx = Math.cos(ang) * speed;
+          ball.vy = Math.sin(ang) * speed;
+        }
         ball.recoil = Math.max(0, ball.recoil - dt);
-        const drag = Math.exp(-1.7 * dt);
-        ball.vx *= drag;
-        ball.vy *= drag;
+        if (ball.recoil <= 0) {
+          ball.recoilSpeed0 = null;
+          ball.recoilMax = 0;
+        }
         lock = true;
-      } else if (fighting && ball.hp > 0 && enemy.hp > 0) {
+      } else if (fighting && ball.hp > 0 && enemy && enemy.hp > 0) {
         if (ball.mode === "idle") {
           if (ball.cd > 0) ball.cd -= dt;
           if (ball.cd <= 0) {
@@ -329,6 +342,9 @@ export function createMatch(canvas, { onChange }) {
         ball.pop += dt;
       } else {
         wall = moveAndBounce(ball, dt);
+        if (wall && ball.recoil > 0 && ball.recoilSpeed0 != null) {
+          ball.recoilAng = Math.atan2(ball.vy, ball.vx);
+        }
       }
       if (fighting && !(ball.pop > 0)) def.afterMove?.(ball, enemy, dt, api, { wall });
       ball.flash = Math.max(0, ball.flash - dt);
@@ -456,7 +472,7 @@ export function createMatch(canvas, { onChange }) {
 
   function clampSpeed(ball) {
     if (ball.recoil > 0) return;
-    const max = ball.mode === "dash" ? ball.baseSpeed * 4.2 : ball.baseSpeed * 1.65;
+    const max = ball.mode === "dash" || (ball.slash?.dash ?? 0) > 0 ? ball.baseSpeed * 4.2 : ball.baseSpeed * 1.65;
     const sp = Math.hypot(ball.vx, ball.vy);
     if (sp > max) {
       ball.vx = (ball.vx / sp) * max;
@@ -524,7 +540,8 @@ export function createMatch(canvas, { onChange }) {
     p.stickAng = ang;
     p.vx = 0;
     p.vy = 0;
-    p.life = 0.48;
+    p.life = 0.3;
+    p.stickMax = p.life;
     if (!enemy) return;
     p.stuckTo = enemy;
     p.stickNx = -Math.cos(ang);
@@ -579,7 +596,12 @@ export function createMatch(canvas, { onChange }) {
     target.flash = 0.22;
     const ang = launch?.ang ?? (Math.atan2(target.y - sy, target.x - sx) || 0);
     if (launch?.speed) {
-      target.recoil = launch.time ?? 0.34;
+      const time = Math.max(0.0001, launch.time ?? 0.34);
+      target.recoil = time;
+      target.recoilMax = time;
+      target.recoilSpeed0 = launch.speed;
+      target.recoilSpeed1 = target.baseSpeed;
+      target.recoilAng = ang;
       target.vx = Math.cos(ang) * launch.speed;
       target.vy = Math.sin(ang) * launch.speed;
     } else {
@@ -729,6 +751,18 @@ export function createMatch(canvas, { onChange }) {
     );
   }
 
+  function nearestFoe(ball) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const foe of foes(ball.i)) {
+      const dist = Math.hypot(foe.x - ball.x, foe.y - ball.y);
+      if (dist >= bestDist) continue;
+      best = foe;
+      bestDist = dist;
+    }
+    return best;
+  }
+
   function cloneBurst(x, y, r = 26) {
     puff(x, y, 1);
     pushShock(x, y, Math.max(S(9.2), r * 0.45), S(85.4), S(369.2), 0.28, "#fffaf6", S(3));
@@ -797,6 +831,8 @@ export function createMatch(canvas, { onChange }) {
     for (const ball of balls) {
       ball.mode = "idle";
       ball.recoil = 0;
+      ball.recoilSpeed0 = null;
+      ball.recoilMax = 0;
       if (ball.hp <= 0 && !ball.clone) popBall(ball);
     }
   }
@@ -849,6 +885,9 @@ export function createMatch(canvas, { onChange }) {
     for (const p of projectiles) if (p.kind !== "shock") drawProjectile(p);
     if (balls.length >= 2) {
       for (const ball of balls) drawTelegraph(ball);
+      for (const ball of balls) {
+        getCharacter(ball.charId).drawTelegraph?.(ctx, ball, api);
+      }
       for (const ball of balls) if (!(ball.pop > 0)) drawShadow(ball);
       for (const ball of balls) {
         const look = ballLook(ball);
@@ -865,6 +904,8 @@ export function createMatch(canvas, { onChange }) {
           alpha: 1 - popT,
           skill: ballSkill(ball),
           aim: ball.aim ?? look,
+          attack: ball.mode === "windup" || ball.mode === "slash" ? ball.attack : null,
+          slash: ball.charId === "ichigo" && ball.mode === "slash" ? ball.slash : null,
           hideSkill: true,
           ko: state === "ko" && ball.hp <= 0 && !(ball.pop > 0),
         });
@@ -914,7 +955,7 @@ export function createMatch(canvas, { onChange }) {
   }
 
   function ballLook(ball) {
-    const enemy = balls[1 - ball.i];
+    const enemy = nearestFoe(ball) || balls[1 - ball.i];
     return Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
   }
 
@@ -1003,28 +1044,23 @@ export function createMatch(canvas, { onChange }) {
   function drawTelegraph(ball) {
     if (ball.mode !== "windup") return;
     const def = getCharacter(ball.charId);
-    const p = 1 - ball.modeT / (ball.windupMax || 1);
+    if (def[`${ball.attack}Telegraph`] !== true || !Number.isFinite(ball.aim)) return;
     ctx.save();
     ctx.strokeStyle = def.color;
-    ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.45;
     ctx.lineWidth = 2;
+    ctx.setLineDash([S(5), S(5)]);
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r + S(10), -Math.PI / 2, -Math.PI / 2 + Math.max(0.01, p) * Math.PI * 2);
+    ctx.moveTo(ball.x, ball.y);
+    ctx.lineTo(ball.x + Math.cos(ball.aim) * S(100), ball.y + Math.sin(ball.aim) * S(100));
     ctx.stroke();
-    if (def[`${ball.attack}Telegraph`] && Number.isFinite(ball.aim)) {
-      ctx.globalAlpha = 0.45;
-      ctx.setLineDash([S(5), S(5)]);
-      ctx.beginPath();
-      ctx.moveTo(ball.x, ball.y);
-      ctx.lineTo(ball.x + Math.cos(ball.aim) * S(100), ball.y + Math.sin(ball.aim) * S(100));
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
   function drawProjectile(p) {
     ctx.save();
     if (p.kind === "kunai" || p.kind === "shuriken") {
+      if (p.stuck && p.stickMax) ctx.globalAlpha = Math.max(0, p.life / p.stickMax);
       ctx.translate(p.x, p.y);
       const ang = p.stuck ? p.stickAng : p.kind === "shuriken" ? p.spin || 0 : Math.atan2(p.vy, p.vx);
       drawWeapon(ctx, p.kind, p.r, ang);

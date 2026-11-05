@@ -1,5 +1,5 @@
-import { drawGetsuga, drawIchigo, ichigo, onPortraits as onIchigoPortraits } from "./ichigo.js?v=6";
-import { drawHeldRasengan, drawNaruto, drawWeapon, naruto, onPortraits as onNarutoPortraits } from "./naruto.js?v=81";
+import { drawGetsuga, drawIchigo, drawIchigoSword, ichigo, ichigoSwordAlpha, ichigoSwordAngle, onPortraits as onIchigoPortraits } from "./ichigo.js?v=19";
+import { drawHeldRasengan, drawNaruto, drawWeapon, naruto, onPortraits as onNarutoPortraits } from "./naruto.js?v=82";
 
 export { drawGetsuga, drawWeapon };
 
@@ -25,6 +25,15 @@ export function drawCharacter(ctx, char, o) {
   ctx.translate(x, y);
   ctx.globalAlpha = alpha;
 
+  if (o.swordOnly) {
+    if (char.id === "ichigo") {
+      const swordA = ichigoSwordAlpha(o.slash, skill, o.attack);
+      drawIchigoSword(ctx, r, ichigoSwordAngle(o.aim ?? 0, o.slash, skill, o.attack), swordA);
+    }
+    ctx.restore();
+    return;
+  }
+
   if (o.skillOnly) {
     if (char.id === "naruto" && skill > 0) drawHeldRasengan(ctx, r, o.aim ?? 0, skill);
     ctx.restore();
@@ -34,6 +43,11 @@ export function drawCharacter(ctx, char, o) {
   if (char.id === "naruto") {
     drawNaruto(ctx, r, o.hideSkill ? 0 : skill, o.aim ?? 0);
   } else if (char.id === "ichigo") {
+    const face = o.aim ?? o.look;
+    const swordA = ichigoSwordAlpha(o.slash, skill, o.attack);
+    if (swordA > 0 && Number.isFinite(face)) {
+      drawIchigoSword(ctx, r, ichigoSwordAngle(face, o.slash, skill, o.attack), swordA);
+    }
     drawIchigo(ctx, r);
   }
 

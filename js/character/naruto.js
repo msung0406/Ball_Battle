@@ -97,24 +97,25 @@ export const naruto = {
   id: "naruto",
   name: "우즈마키 나루토",
   en: " UZUMAKI NARUTO",
-  hp: 200,
-  speed: 150,
+  hp: 1000,
+  speed: 240,
   radius: NARUTO_RADIUS,
   color: "#ff7a1a",
   highlight: "#ffe7b0",
   shade: "#7a2208",
   /** ========== 나선환 ==========  */
-  rasenganCharge: 1,
+  rasenganCharge: 0.75,
   rasenganCooldown: 4,
   rasenganDamage: 4,
   rasenganDashSpeed: 600,
   rasenganKnockbackSpeed: 600,
+  rasenganRecoilTime: 0.5,
   /** 나선환 적중 피해 횟수 */
   rasenganHits: 5,
   /** 나선환 적중 피해 간격(초) */
   rasenganHitInterval: 0.1,
   rasenganTrack: true,
-  rasenganTelegraph: true,
+  rasenganTelegraph: false,
   /** 나선환 반지름 */
   rasenganRadius: RASENGAN_R,
   /** 나선환 충전 중 이동 속도 배율 */
@@ -129,7 +130,7 @@ export const naruto = {
   kunaiTrack: true,
   kunaiTelegraph: false,
   /** ========== 그림자 분신 ==========  */
-  cloneCharge: 0.5,
+  cloneCharge: 0,
   cloneCooldown: 10,
   cloneTrack: false,
   cloneTelegraph: false,
@@ -188,7 +189,7 @@ export const naruto = {
         r: api.S(18.5) * (shuriken ? 0.5 : 1),
         damage: this.kunaiDamage,
         force: api.S(this.kunaiKnockbackForce),
-        life: 1.2,
+        life: 2,
         owner: ball.i,
         color: "#d7dde6",
         spin: shuriken ? Math.random() * Math.PI * 2 : 0,
@@ -257,6 +258,10 @@ function freezePair(a, b) {
 
 function holdPair(a, b) {
   freezePair(a, b);
+  a.recoilSpeed0 = null;
+  b.recoilSpeed0 = null;
+  a.recoilMax = 0;
+  b.recoilMax = 0;
   a.recoil = Math.max(a.recoil, 0.05);
   b.recoil = Math.max(b.recoil, 0.05);
 }
@@ -310,7 +315,7 @@ function tickRasengan(ball, dt, api) {
   };
   if (last) {
     launch.speed = api.S(naruto.rasenganKnockbackSpeed);
-    launch.time = 0.34;
+    launch.time = naruto.rasenganRecoilTime;
   }
   const landed = api.damage(target, naruto.rasenganDamage, orb.x, orb.y, 0, launch);
   if (landed && last) api.shake(16);
@@ -331,6 +336,8 @@ function endRasenganCombo(ball) {
   ball.rasenganCombo = null;
   ball.mode = "idle";
   ball.recoil = 0;
+  ball.recoilSpeed0 = null;
+  ball.recoilMax = 0;
   if (target) target.rasenganStun = false;
 }
 

@@ -11,6 +11,7 @@
 | `Damage` | 피해 |
 | `KnockbackForce` | recoil이 없을 때 밀어내는 힘 |
 | `KnockbackSpeed` | recoil이 있을 때 밀어내는 속도 |
+| `RecoilTime` | recoil 시간(초) |
 | `DashSpeed` | 돌진 속도 |
 | `DashTime` | 돌진 유지 시간(초) |
 | `ThrowSpeed` | 투사체 속도 |

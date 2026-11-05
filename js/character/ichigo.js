@@ -3,6 +3,19 @@ import { angleTo } from "./util.js";
 const ICHIGO_RADIUS = 30;
 
 const portrait = loadPortrait("../../assets/ichigo/ichigo.png?v=1");
+const sword = loadPortrait("../../assets/ichigo/zangetsu.png?v=2");
+/** 이미지에서 손잡이 중심과 칼끝이 향하는 각 */
+const GRIP_X = 0.744;
+const GRIP_Y = 0.875;
+const TIP_ANG = Math.atan2(-813.743, 39.254);
+/** 손잡이 중심에서 칼끝까지의 거리. 이미지 높이 대비 */
+const TIP_DIST = Math.hypot(39.254, 813.743) / 930;
+const PULL = Math.PI / 3;
+const SWING = (2 * Math.PI) / 3;
+/** attack2: 뒤로 120도, 한 바퀴+180도 돌아 앞으로 60도 */
+const PULL2 = (2 * Math.PI) / 3;
+const SPIN2 = Math.PI * 3;
+const FOLLOW2 = Math.PI / 3;
 const portraitListeners = [];
 let portraitReady = false;
 
@@ -25,50 +38,263 @@ export const ichigo = {
   id: "ichigo",
   name: "쿠로사키 이치고",
   en: "KUROSAKI ICHIGO",
-  hp: 200,
-  speed: 160,
+  hp: 1000,
+  speed: 200,
   radius: ICHIGO_RADIUS,
   color: "#ff6a1a",
   highlight: "#ffe0b0",
   shade: "#1a120e",
-  /** ========== 월아천충 ========== */
-  getsugaCharge: 0,
-  getsugaCooldown: 3,
-  getsugaDamage: 16,
-  getsugaThrowSpeed: 780,
-  getsugaKnockbackForce: 160,
-  getsugaTrack: true,
-  getsugaTelegraph: false,
-  /** 월아천충이 맞히는 원의 기준 반지름. 그려지는 참격은 이 원보다 크다 */
-  getsugaRadius: 36,
+  /** ========== 공격 ========== */
+  attackCharge: 0.5,
+  attackCooldown: 2,
+  attackDamage: 20,
+  attackKnockbackSpeed: 600,
+  attackRecoilTime: 0.2,
+  attackTrack: true,
+  /** 공격 사거리 */
+  attackSwordSize: 3,
+  /** 공격 모션 시간 */
+  attackSwing: 0.1,
+  attackHold: 0.2,
+  attackRecover: 0.1,
+  attackDashSpeed: 1200,
+  attackDashTime: 0.1,
+  /** ========== 공격2 ========== */
+  attack2Charge: 1,
+  attack2Cooldown: 6,
+  attack2Damage: 40,
+  attack2KnockbackSpeed: 1600,
+  attack2RecoilTime: 0.5,
+  attack2Track: true,
+  /** 공격2 모션 시간 */
+  attack2Swing: 0.2,
+  attack2Hold: 0.2,
+  attack2Recover: 0.2,
   initCds(ball) {
-    ball.cds = { getsuga: 0 };
+    ball.cds = { attack: 0, attack2: this.attack2Cooldown };
   },
   readySkill(ball) {
-    return (ball.cds.getsuga ?? 0) <= 0 ? "getsuga" : null;
+    if ((ball.cds.attack2 ?? 0) <= 0) return "attack2";
+    if ((ball.cds.attack ?? 0) <= 0) return "attack";
+    return null;
   },
-  release(ball, enemy, api) {
+  control(ball, _enemy, dt, api) {
+    const slash = ball.slash;
+    if (!slash || slash.kind !== "attack" || !(slash.dash > 0)) return;
+    slash.dash = Math.max(0, slash.dash - dt);
+    const speed = api.S(this.attackDashSpeed);
+    ball.vx = Math.cos(slash.aim) * speed;
+    ball.vy = Math.sin(slash.aim) * speed;
+    return "lock";
+  },
+  release(ball, enemy) {
     const ang = ball.aim ?? angleTo(ball, enemy);
-    const dist = ball.r + api.S(this.getsugaRadius) * 0.35;
-    const speed = api.S(this.getsugaThrowSpeed);
-    api.spawn({
-      kind: "getsuga",
-      x: ball.x + Math.cos(ang) * dist,
-      y: ball.y + Math.sin(ang) * dist,
-      vx: Math.cos(ang) * speed,
-      vy: Math.sin(ang) * speed,
-      r: api.S(this.getsugaRadius),
-      damage: this.getsugaDamage,
-      force: api.S(this.getsugaKnockbackForce),
-      life: 1.2,
-      max: 1.2,
-      owner: ball.i,
-      color: "#7ef6ff",
-    });
-    api.sfx("shot");
-    ball.mode = "idle";
+    ball.aim = ang;
+    ball.mode = "slash";
+    ball.slash = { kind: ball.attack, aim: ang, age: 0, hurt: [], swung: false };
+  },
+  afterMove(ball, enemy, dt, api) {
+    const slash = ball.slash;
+    if (!slash) return;
+    if (ball.hp <= 0) {
+      ball.slash = null;
+      if (ball.mode === "slash") ball.mode = "idle";
+      return;
+    }
+    slash.age += dt;
+    if (slash.kind === "attack2") {
+      tickAttack2(ball, enemy, api, slash);
+      return;
+    }
+    tickAttack(ball, enemy, api, slash);
+  },
+  drawTelegraph(ctx, ball, api) {
+    if (ball.mode !== "windup") return;
+    const reach = swordReach(ball.r);
+    const aim = ball.aim;
+    if (!(reach > 0) || !Number.isFinite(aim)) return;
+    const charge = ball.windupMax > 0 ? 1 - ball.modeT / ball.windupMax : 1;
+    const filled = Math.max(0.01, reach * Math.min(1, Math.max(0, charge)));
+    ctx.save();
+    ctx.translate(ball.x, ball.y);
+    if (ball.attack === "attack2") {
+      ctx.beginPath();
+      ctx.arc(0, 0, filled, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 106, 26, 0.28)";
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, ball.r * 0.06);
+      ctx.strokeStyle = "rgba(255, 214, 170, 0.9)";
+      ctx.beginPath();
+      ctx.arc(0, 0, reach, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (ball.attack === "attack") {
+      const half = SWING / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, filled, aim - half, aim + half);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(255, 106, 26, 0.28)";
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, ball.r * 0.06);
+      ctx.strokeStyle = "rgba(255, 214, 170, 0.9)";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, reach, aim - half, aim + half);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.restore();
   },
 };
+
+function tickAttack(ball, enemy, api, slash) {
+  if (!slash.swung) {
+    slash.swung = true;
+    slash.aim = ichigo.attackTrack ? angleTo(ball, enemy) : slash.aim;
+    slash.dash = ichigo.attackDashTime;
+    api.sfx("shot");
+  }
+  if (slash.age < ichigo.attackSwing) {
+    const reach = swordReach(ball.r);
+    if (reach > 0) {
+      for (const foe of api.foes(ball.i)) {
+        if (slash.hurt.includes(foe) || !foeInCone(ball, foe, slash.aim, reach)) continue;
+        slash.hurt.push(foe);
+        const ang = Math.atan2(foe.y - ball.y, foe.x - ball.x) || 0;
+        if (
+          api.damage(foe, ichigo.attackDamage, ball.x, ball.y, 0, {
+            ang,
+            speed: api.S(ichigo.attackKnockbackSpeed),
+            time: ichigo.attackRecoilTime,
+            color: "#f4f4f4",
+          })
+        ) {
+          api.shake(16);
+        }
+      }
+    }
+  }
+  const total = ichigo.attackSwing + ichigo.attackHold + ichigo.attackRecover;
+  if (slash.age < total) return;
+  ball.slash = null;
+  ball.mode = "idle";
+}
+
+function tickAttack2(ball, enemy, api, slash) {
+  if (!slash.swung) {
+    slash.swung = true;
+    slash.aim = ichigo.attack2Track ? angleTo(ball, enemy) : slash.aim;
+    api.sfx("shot");
+  }
+  if (slash.age < ichigo.attack2Swing) {
+    const reach = swordReach(ball.r);
+    if (reach > 0) {
+      for (const foe of api.foes(ball.i)) {
+        if (slash.hurt.includes(foe) || !foeInReach(ball, foe, reach)) continue;
+        slash.hurt.push(foe);
+        const ang = Math.atan2(foe.y - ball.y, foe.x - ball.x) || 0;
+        if (
+          api.damage(foe, ichigo.attack2Damage, ball.x, ball.y, 0, {
+            ang,
+            speed: api.S(ichigo.attack2KnockbackSpeed),
+            time: ichigo.attack2RecoilTime,
+            color: "#f4f4f4",
+          })
+        ) {
+          api.shake(16);
+        }
+      }
+    }
+  }
+  const total = ichigo.attack2Swing + ichigo.attack2Hold + ichigo.attack2Recover;
+  if (slash.age < total) return;
+  ball.slash = null;
+  ball.mode = "idle";
+}
+
+function swordReach(r) {
+  return r * (1 + 2 * TIP_DIST * ichigo.attackSwordSize);
+}
+
+function foeInCone(ball, foe, aim, reach) {
+  const dx = foe.x - ball.x;
+  const dy = foe.y - ball.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > reach + foe.r) return false;
+  let delta = Math.atan2(dy, dx) - aim;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  const slack = foe.r / Math.max(dist, 1);
+  return Math.abs(delta) <= SWING / 2 + slack;
+}
+
+function foeInReach(ball, foe, reach) {
+  return Math.hypot(foe.x - ball.x, foe.y - ball.y) <= reach + foe.r;
+}
+
+function smooth(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+function lerpAngle(from, to, t) {
+  let delta = to - from;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  return from + delta * t;
+}
+
+/** Idle hidden; fade in over charge; full during swing/hold; fade out over recover. */
+export function ichigoSwordAlpha(slash, charge = 0, skillId = null) {
+  if (slash) {
+    const skill = slash.kind ?? skillId;
+    const swing = skill === "attack2" ? ichigo.attack2Swing : ichigo.attackSwing;
+    const hold = skill === "attack2" ? ichigo.attack2Hold : ichigo.attackHold;
+    const recover = skill === "attack2" ? ichigo.attack2Recover : ichigo.attackRecover;
+    const holdEnd = swing + hold;
+    if (slash.age <= holdEnd) return 1;
+    if (!(recover > 0)) return 0;
+    return Math.max(0, 1 - (slash.age - holdEnd) / recover);
+  }
+  if (charge > 0) return Math.min(1, Math.max(0, charge));
+  return 0;
+}
+
+export function ichigoSwordAngle(aim, slash, charge = 0, skillId = null) {
+  const skill = slash?.kind ?? skillId;
+  if (slash) {
+    if (skill === "attack2") {
+      const swingEnd = ichigo.attack2Swing;
+      const holdEnd = swingEnd + ichigo.attack2Hold;
+      const follow = slash.aim - FOLLOW2;
+      if (slash.age <= swingEnd) {
+        const t = swingEnd > 0 ? slash.age / swingEnd : 1;
+        /** 끝에서 팡 하고 멈추도록 강한 ease-out */
+        const e = 1 - (1 - Math.min(1, t)) ** 4;
+        return slash.aim + PULL2 - SPIN2 * e;
+      }
+      if (slash.age <= holdEnd) return follow;
+      const t = (slash.age - holdEnd) / ichigo.attack2Recover;
+      return lerpAngle(follow, aim, smooth(t));
+    }
+    const swingEnd = ichigo.attackSwing;
+    const holdEnd = swingEnd + ichigo.attackHold;
+    const follow = slash.aim + PULL - SWING;
+    if (slash.age <= swingEnd) {
+      const t = swingEnd > 0 ? slash.age / swingEnd : 1;
+      const e = 1 - (1 - Math.min(1, t)) ** 3;
+      return slash.aim + PULL - SWING * e;
+    }
+    if (slash.age <= holdEnd) return follow;
+    const t = (slash.age - holdEnd) / ichigo.attackRecover;
+    return lerpAngle(follow, aim, smooth(t));
+  }
+  if (charge > 0) {
+    const pull = skill === "attack2" ? PULL2 : PULL;
+    return aim + pull * smooth(charge);
+  }
+  return aim;
+}
 
 export function drawIchigo(ctx, r) {
   ctx.save();
@@ -103,6 +329,20 @@ export function drawIchigo(ctx, r) {
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
+}
+
+export function drawIchigoSword(ctx, r, ang, alpha = 1) {
+  if (!(alpha > 0) || !sword.complete || sword.naturalWidth <= 0 || !Number.isFinite(ang)) return;
+  const len = r * 2 * ichigo.attackSwordSize;
+  const scale = len / sword.naturalHeight;
+  const w = sword.naturalWidth * scale;
+  const h = len;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.translate(Math.cos(ang) * r, Math.sin(ang) * r);
+  ctx.rotate(ang - TIP_ANG);
+  ctx.drawImage(sword, -GRIP_X * w, -GRIP_Y * h, w, h);
+  ctx.restore();
 }
 
 export function drawGetsuga(ctx, p) {
