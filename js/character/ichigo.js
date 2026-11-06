@@ -4,15 +4,12 @@ const ICHIGO_RADIUS = 30;
 
 const portrait = loadPortrait("../../assets/ichigo/ichigo.png?v=1");
 const sword = loadPortrait("../../assets/ichigo/zangetsu.png?v=2");
-/** 이미지에서 손잡이 중심과 칼끝이 향하는 각 */
 const GRIP_X = 0.744;
 const GRIP_Y = 0.875;
 const TIP_ANG = Math.atan2(-813.743, 39.254);
-/** 손잡이 중심에서 칼끝까지의 거리. 이미지 높이 대비 */
 const TIP_DIST = Math.hypot(39.254, 813.743) / 930;
 const PULL = Math.PI / 3;
 const SWING = (2 * Math.PI) / 3;
-/** attack2: 뒤로 120도, 한 바퀴+180도 돌아 앞으로 60도 */
 const PULL2 = (2 * Math.PI) / 3;
 const SPIN2 = Math.PI * 3;
 const FOLLOW2 = Math.PI / 3;
@@ -147,10 +144,9 @@ export const ichigo = {
   },
 };
 
-function tickAttack(ball, enemy, api, slash) {
+function tickAttack(ball, _enemy, api, slash) {
   if (!slash.swung) {
     slash.swung = true;
-    slash.aim = ichigo.attackTrack ? angleTo(ball, enemy) : slash.aim;
     slash.dash = ichigo.attackDashTime;
     api.sfx("shot");
   }
@@ -180,10 +176,9 @@ function tickAttack(ball, enemy, api, slash) {
   ball.mode = "idle";
 }
 
-function tickAttack2(ball, enemy, api, slash) {
+function tickAttack2(ball, _enemy, api, slash) {
   if (!slash.swung) {
     slash.swung = true;
-    slash.aim = ichigo.attack2Track ? angleTo(ball, enemy) : slash.aim;
     api.sfx("shot");
   }
   if (slash.age < ichigo.attack2Swing) {
@@ -244,7 +239,6 @@ function lerpAngle(from, to, t) {
   return from + delta * t;
 }
 
-/** Idle hidden; fade in over charge; full during swing/hold; fade out over recover. */
 export function ichigoSwordAlpha(slash, charge = 0, skillId = null) {
   if (slash) {
     const skill = slash.kind ?? skillId;

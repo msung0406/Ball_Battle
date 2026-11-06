@@ -157,6 +157,7 @@ export function createMatch(canvas, { onChange }) {
       cds: {},
       flash: 0,
       aim: null,
+      trackTarget: null,
       dashAng: 0,
       recoil: 0,
       pop: 0,
@@ -305,26 +306,43 @@ export function createMatch(canvas, { onChange }) {
             if (skill) {
               ball.attack = skill;
               const charge = def[`${skill}Charge`] ?? 0;
-              ball.aim = def[`${skill}Track`]
+              const track = def[`${skill}Track`];
+              ball.aim = track
                 ? Math.atan2(enemy.y - ball.y, enemy.x - ball.x)
                 : Math.random() * Math.PI * 2;
               if (charge > 0) {
                 ball.mode = "windup";
                 ball.modeT = charge;
                 ball.windupMax = charge;
+                ball.trackTarget = track ? enemy : null;
               } else {
                 ball.cds[skill] = def[`${skill}Cooldown`] ?? 0;
+                ball.trackTarget = null;
                 def.release(ball, enemy, api);
               }
             }
           }
         } else if (ball.mode === "windup") {
-          if (def[`${ball.attack}Track`]) ball.aim = Math.atan2(enemy.y - ball.y, enemy.x - ball.x);
+          if (def[`${ball.attack}Track`]) {
+            let target = ball.trackTarget;
+            if (!aliveFoe(ball, target)) {
+              target = nearestFoe(ball) || enemy;
+              ball.trackTarget = target;
+            }
+            if (target) {
+              const want = Math.atan2(target.y - ball.y, target.x - ball.x);
+              ball.aim = Number.isFinite(ball.aim)
+                ? turnToward(ball.aim, want, TRACK_TURN_SPEED * dt)
+                : want;
+            }
+          }
           ball.modeT -= dt;
           if (ball.modeT <= 0) {
             const skill = ball.attack;
+            const target = aliveFoe(ball, ball.trackTarget) ? ball.trackTarget : enemy;
             ball.cds[skill] = def[`${skill}Cooldown`] ?? 0;
-            def.release(ball, enemy, api);
+            ball.trackTarget = null;
+            def.release(ball, target, api);
           }
         }
         if (ball.mode !== "idle" && ball.mode !== "windup" && def.control?.(ball, enemy, dt, api) === "lock") {
@@ -1174,6 +1192,20 @@ export function createMatch(canvas, { onChange }) {
   return { setFighters, setArena, start, toPreview, getState, debug, startLoop };
 }
 
+/** Track aim turn rate: 720 deg/s */
+const TRACK_TURN_SPEED = (720 * Math.PI) / 180;
+
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
+}
+
+function turnToward(from, to, maxStep) {
+  let d = to - from;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return from + clamp(d, -maxStep, maxStep);
+}
+
+function aliveFoe(ball, foe) {
+  return Boolean(foe && foe.i !== ball.i && !foe.poofed && foe.hp > 0 && !(foe.pop > 0));
 }
